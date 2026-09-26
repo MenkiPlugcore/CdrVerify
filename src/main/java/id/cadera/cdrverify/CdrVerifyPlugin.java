@@ -14,7 +14,6 @@ import github.scarsz.discordsrv.dependencies.jda.api.interactions.commands.build
 import github.scarsz.discordsrv.dependencies.jda.api.interactions.components.Button;
 import id.cadera.cdrverify.command.CdrVerifyCommand;
 import id.cadera.cdrverify.listener.DiscordInteractionListener;
-import id.cadera.cdrverify.listener.DiscordVerificationListener;
 import id.cadera.cdrverify.listener.JoinGuardListener;
 import id.cadera.cdrverify.verification.VerificationService;
 import net.kyori.adventure.text.Component;
@@ -25,6 +24,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +37,6 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
     private static final LegacyComponentSerializer AMPERSAND = LegacyComponentSerializer.legacyAmpersand();
 
     private VerificationService verificationService;
-    private DiscordVerificationListener discordMessageListener;
     private DiscordInteractionListener discordInteractionListener;
     private YamlConfiguration messages;
     private volatile boolean discordEnvironmentReady;
@@ -58,9 +59,6 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
 
         Bukkit.getPluginManager().registerEvents(new JoinGuardListener(this, verificationService), this);
 
-        discordMessageListener = new DiscordVerificationListener(this, verificationService);
-        DiscordSRV.api.subscribe(discordMessageListener);
-
         discordInteractionListener = new DiscordInteractionListener(this);
         registerJdaListenerWhenReady();
 
@@ -74,18 +72,11 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         validateStaticConfiguration();
 
         getLogger().info("CdrVerify v" + getDescription().getVersion() + " enabled.");
-        getLogger().info("Verification flow: Minecraft join -> Discord /verify -> rejoin.");
+        getLogger().info("Verification flow: first join -> pending nickname -> Discord /verify nick -> rejoin.");
     }
 
     @Override
     public void onDisable() {
-        if (discordMessageListener != null) {
-            try {
-                DiscordSRV.api.unsubscribe(discordMessageListener);
-            } catch (Throwable ignored) {
-            }
-        }
-
         if (discordInteractionListener != null && jdaListenerRegistered) {
             try {
                 var jda = DiscordSRV.getPlugin().getJda();
@@ -160,7 +151,23 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
     }
 
     private void reloadMessages() {
-        messages = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "messages.yml"));
+        File file = new File(getDataFolder(), "messages.yml");
+        YamlConfiguration external = YamlConfiguration.loadConfiguration(file);
+
+        try (InputStream input = getResource("messages.yml")) {
+            if (input != null) {
+                YamlConfiguration defaults = YamlConfiguration.loadConfiguration(
+                        new InputStreamReader(input, StandardCharsets.UTF_8)
+                );
+                external.setDefaults(defaults);
+                external.options().copyDefaults(true);
+                external.save(file);
+            }
+        } catch (Exception exception) {
+            getLogger().warning("Gagal merge defaults messages.yml: " + exception.getMessage());
+        }
+
+        messages = external;
     }
 
     private void validateStaticConfiguration() {
@@ -182,6 +189,10 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         String mode = getConfig().getString("security.ip-binding.mode", "SESSION").toUpperCase();
         if (!mode.equals("OFF") && !mode.equals("SESSION") && !mode.equals("STRICT")) {
             getLogger().warning("security.ip-binding.mode tidak valid: " + mode + ". Fallback: SESSION.");
+        }
+
+        if (!getServer().getOnlineMode()) {
+            getLogger().warning("Server berjalan dengan online-mode=false. Nickname-only verification lebih mudah disalahgunakan pada offline-mode.");
         }
     }
 
@@ -246,7 +257,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         }
 
         CommandData command = new CommandData("verify", "Verifikasi akun Minecraft Vephilim")
-                .addOption(OptionType.STRING, "code", "Kode VPH-XXXXXX dari Minecraft", true);
+                .addOption(OptionType.STRING, "nick", "Nickname Minecraft yang baru mencoba join Vephilim", true);
 
         String guildId = getConfig().getString("verification.discord.guild-id", "").trim();
         PluginSlashCommand slash = guildId.isEmpty()
@@ -263,15 +274,21 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         }
 
         String configuredGuild = getConfig().getString("verification.discord.guild-id", "").trim();
+        String configuredChannel = getConfig().getString("verification.discord.verification-channel-id", "").trim();
+
         if (event.getGuild() == null || (!configuredGuild.isEmpty() && !configuredGuild.equals(event.getGuild().getId()))) {
             event.getHook().sendMessage(message("discord.wrong-guild")).queue();
             return;
         }
+        if (!configuredChannel.isEmpty() && !configuredChannel.equals(event.getChannel().getId())) {
+            event.getHook().sendMessage(message("discord.wrong-channel")).queue();
+            return;
+        }
 
-        var option = event.getOption("code");
-        String code = option == null ? "" : option.getAsString();
-        VerificationService.DiscordResult result = verificationService.verifyFromDiscord(code, event.getUser().getId());
-        String reply = discordResultMessage(result);
+        var option = event.getOption("nick");
+        String nickname = option == null ? "" : option.getAsString();
+        VerificationService.DiscordResult result = verificationService.verifyFromDiscord(nickname, event.getUser().getId());
+        String reply = discordResultMessage(result, event.getUser().getName());
         event.getHook().sendMessage(reply).queue();
 
         if (result.type() == VerificationService.ResultType.SUCCESS
@@ -299,10 +316,10 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
             }
 
             String buttonLabel = getConfig().getString("verification.discord.panel.button-label", "Verifikasi Akun");
-            channel.sendMessage(message("discord.panel"))
+            channel.sendMessage(message("discord.panel-v3"))
                     .setActionRow(Button.primary(DiscordInteractionListener.VERIFY_BUTTON_ID, buttonLabel))
                     .queue(
-                            message -> sender.sendMessage(legacyComponent("&aPanel verifikasi berhasil dikirim. Message ID: &f" + message.getId())),
+                            sent -> sender.sendMessage(legacyComponent("&aPanel verifikasi berhasil dikirim. Message ID: &f" + sent.getId())),
                             failure -> sender.sendMessage(legacyComponent("&cGagal mengirim panel: &f" + failure.getMessage()))
                     );
         } catch (Throwable throwable) {
@@ -310,20 +327,21 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         }
     }
 
-    public String discordResultMessage(VerificationService.DiscordResult result) {
+    public String discordResultMessage(VerificationService.DiscordResult result, String discordName) {
         String path = switch (result.type()) {
-            case SUCCESS -> "discord.success";
-            case REVERIFY_SUCCESS -> "discord.reverify-success";
-            case INVALID_CODE -> "discord.invalid-code";
-            case LOCKED -> "discord.locked";
+            case SUCCESS -> "discord.success-v3";
+            case REVERIFY_SUCCESS -> "discord.reverify-success-v3";
+            case PENDING_NOT_FOUND -> "discord.pending-not-found";
+            case LOCKED -> "discord.locked-v3";
             case DISCORD_ALREADY_LINKED -> "discord.discord-already-linked";
             case MINECRAFT_ALREADY_LINKED -> "discord.minecraft-already-linked";
-            case WRONG_DISCORD -> "discord.wrong-discord";
+            case WRONG_DISCORD -> "discord.wrong-discord-v3";
             case INTERNAL_ERROR -> "discord.internal-error";
         };
 
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("player", result.playerName() == null ? "Unknown" : result.playerName());
+        placeholders.put("discord", discordName == null || discordName.isBlank() ? "Unknown" : discordName);
         placeholders.put("minutes", Long.toString(Math.max(1L, (result.remainingLockMillis() + 59_999L) / 60_000L)));
         return message(path, placeholders);
     }
