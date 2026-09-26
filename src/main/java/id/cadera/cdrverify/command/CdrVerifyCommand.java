@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = List.of(
-            "status", "reset", "unlink", "code", "force", "panel", "doctor", "reload"
+            "status", "pending", "reset", "unlink", "force", "panel", "doctor", "reload"
     );
 
     private final CdrVerifyPlugin plugin;
@@ -52,7 +52,7 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
         return switch (args[0].toLowerCase(Locale.ROOT)) {
             case "reload" -> reload(sender);
             case "status" -> status(sender, args);
-            case "code" -> code(sender, args);
+            case "pending" -> pending(sender, args);
             case "reset" -> reset(sender, args);
             case "unlink" -> unlink(sender, args);
             case "force" -> force(sender, args);
@@ -81,14 +81,14 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
         sender.sendMessage(plugin.legacyComponent("&b&lCdrVerify Doctor"));
         sender.sendMessage(plugin.legacyComponent("&7Discord environment: " + (valid ? "&aVALID" : "&cINVALID")));
-        sender.sendMessage(plugin.legacyComponent("&7Slash /verify: " +
+        sender.sendMessage(plugin.legacyComponent("&7Slash /verify nick: " +
                 (plugin.getConfig().getBoolean("verification.discord.slash-command.enabled", true) ? "&aENABLED" : "&cDISABLED")));
-        sender.sendMessage(plugin.legacyComponent("&7Message-code fallback: " +
-                (plugin.getConfig().getBoolean("verification.discord.allow-message-code", true) ? "&aENABLED" : "&cDISABLED")));
+        sender.sendMessage(plugin.legacyComponent("&7Pending TTL: &f" +
+                plugin.getConfig().getInt("verification.pending.expire-minutes", 15) + " menit"));
         sender.sendMessage(plugin.legacyComponent("&7IP mode: &f" +
                 plugin.getConfig().getString("security.ip-binding.mode", "SESSION")));
-        sender.sendMessage(plugin.legacyComponent("&7Code TTL: &f" +
-                plugin.getConfig().getInt("verification.code.expire-minutes", 15) + " menit"));
+        sender.sendMessage(plugin.legacyComponent("&7Online mode: " +
+                (plugin.getServer().getOnlineMode() ? "&aTRUE" : "&eFALSE &8(nickname claim lebih lemah)")));
         sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
         return true;
     }
@@ -120,7 +120,7 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(plugin.legacyComponent("&7Pending session: &aNONE"));
         } else {
             sender.sendMessage(plugin.legacyComponent("&7Pending session: &e" + pending.purpose().name()));
-            sender.sendMessage(plugin.legacyComponent("&7Code: &f" + pending.code()));
+            sender.sendMessage(plugin.legacyComponent("&7Pending nickname: &f" + pending.username()));
             sender.sendMessage(plugin.legacyComponent("&7Expires: &f~" + verificationService.remainingMinutes(pending) + " menit"));
         }
 
@@ -132,9 +132,9 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    private boolean code(CommandSender sender, String[] args) {
+    private boolean pending(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(plugin.legacyComponent("&cUsage: /cdrverify code <player|uuid>"));
+            sender.sendMessage(plugin.legacyComponent("&cUsage: /cdrverify pending <player|uuid>"));
             return true;
         }
         OfflinePlayer player = resolvePlayer(args[1]);
@@ -147,8 +147,9 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(plugin.component("minecraft.no-pending", Map.of("player", displayName(player, args[1]))));
             return true;
         }
-        sender.sendMessage(plugin.legacyComponent("&8[&bCdrVerify&8] &7Code &f" + displayName(player, args[1])
-                + "&7: &b&l" + session.code() + " &8(~" + verificationService.remainingMinutes(session) + "m)"));
+        sender.sendMessage(plugin.legacyComponent("&8[&bCdrVerify&8] &f" + session.username()
+                + " &7pending sebagai &e" + session.purpose().name()
+                + " &8(~" + verificationService.remainingMinutes(session) + "m)"));
         return true;
     }
 
@@ -211,7 +212,7 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
                 plugin.legacyComponent("&8&m--------------------------------"),
                 plugin.legacyComponent("&b&lCdrVerify &7Admin Commands"),
                 plugin.legacyComponent("&f/" + label + " status <player> &8- &7lihat status"),
-                plugin.legacyComponent("&f/" + label + " code <player> &8- &7lihat pending code"),
+                plugin.legacyComponent("&f/" + label + " pending <player> &8- &7lihat pending nickname"),
                 plugin.legacyComponent("&f/" + label + " reset <player> &8- &7hapus sesi pending"),
                 plugin.legacyComponent("&f/" + label + " unlink <player> &8- &7lepas link Discord"),
                 plugin.legacyComponent("&f/" + label + " force <player> <discord-id> &8- &7force link aman"),
