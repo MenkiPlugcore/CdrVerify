@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 public final class VerificationService {
 
@@ -35,7 +34,7 @@ public final class VerificationService {
     public enum ResultType {
         SUCCESS,
         REVERIFY_SUCCESS,
-        INVALID_CODE,
+        PENDING_NOT_FOUND,
         LOCKED,
         DISCORD_ALREADY_LINKED,
         MINECRAFT_ALREADY_LINKED,
@@ -46,7 +45,6 @@ public final class VerificationService {
     public record Session(
             UUID uuid,
             String username,
-            String code,
             String ipHash,
             long createdAt,
             long expiresAt,
@@ -107,7 +105,7 @@ public final class VerificationService {
     private final CdrVerifyPlugin plugin;
     private final Object storageLock = new Object();
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
-    private final Map<String, UUID> codeIndex = new ConcurrentHashMap<>();
+    private final Map<String, UUID> nicknameIndex = new ConcurrentHashMap<>();
     private final Map<UUID, VerifiedMeta> verifiedMeta = new ConcurrentHashMap<>();
     private final Map<String, AttemptState> attempts = new ConcurrentHashMap<>();
 
@@ -134,9 +132,8 @@ public final class VerificationService {
     public void load() {
         synchronized (storageLock) {
             sessions.clear();
-            codeIndex.clear();
+            nicknameIndex.clear();
             verifiedMeta.clear();
-
             loadPending();
             loadVerifiedMeta();
             cleanupExpiredLocked(System.currentTimeMillis());
@@ -146,6 +143,7 @@ public final class VerificationService {
 
     public void saveAll() {
         synchronized (storageLock) {
+            cleanupExpiredLocked(System.currentTimeMillis());
             savePendingLocked();
             saveVerifiedMetaLocked();
         }
@@ -155,7 +153,6 @@ public final class VerificationService {
         if (!plugin.getConfig().getBoolean("verification.enabled", true)) {
             return JoinEvaluation.allow();
         }
-
         if (isBypassed(uuid, username)) {
             return JoinEvaluation.allow();
         }
@@ -165,8 +162,8 @@ public final class VerificationService {
             return JoinEvaluation.unavailableResult();
         }
 
-        String ip = address == null ? "unknown" : address.getHostAddress();
-        String ipHash = ipMode() == IpMode.OFF ? "" : hashIp(ip);
+        String rawIp = address == null ? "unknown" : address.getHostAddress();
+        String ipHash = ipMode() == IpMode.OFF ? "" : hashIp(rawIp);
         String discordId;
 
         try {
@@ -177,20 +174,14 @@ public final class VerificationService {
         }
 
         if (discordId != null) {
-            return evaluateAlreadyLinked(uuid, username, discordId, ipHash, ip);
+            return evaluateAlreadyLinked(uuid, username, discordId, ipHash, rawIp);
         }
 
-        Session session = getOrCreateSession(uuid, username, ipHash, Purpose.INITIAL_LINK, ip);
+        Session session = getOrCreateSession(uuid, username, ipHash, Purpose.INITIAL_LINK, rawIp);
         return JoinEvaluation.deny(session);
     }
 
-    private JoinEvaluation evaluateAlreadyLinked(
-            UUID uuid,
-            String username,
-            String discordId,
-            String ipHash,
-            String maskedIpSource
-    ) {
+    private JoinEvaluation evaluateAlreadyLinked(UUID uuid, String username, String discordId, String ipHash, String rawIp) {
         IpMode mode = ipMode();
 
         if (mode != IpMode.STRICT) {
@@ -210,7 +201,6 @@ public final class VerificationService {
 
         VerifiedMeta current = verifiedMeta.get(uuid);
         long now = System.currentTimeMillis();
-
         if (current == null || !safeEquals(current.discordId(), discordId) || current.ipHash() == null || current.ipHash().isBlank()) {
             verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, now, now));
             saveVerifiedMeta();
@@ -224,54 +214,34 @@ public final class VerificationService {
             return JoinEvaluation.allow();
         }
 
-        Session session = getOrCreateSession(uuid, username, ipHash, Purpose.IP_REVERIFY, maskedIpSource);
+        Session session = getOrCreateSession(uuid, username, ipHash, Purpose.IP_REVERIFY, rawIp);
         return JoinEvaluation.deny(session);
     }
 
-    public String extractCodeCandidate(String rawMessage) {
-        if (rawMessage == null) {
-            return null;
-        }
-
-        String value = rawMessage.trim();
-        if (value.regionMatches(true, 0, "/verify ", 0, 8)) {
-            value = value.substring(8).trim();
-        } else if (value.regionMatches(true, 0, "verify ", 0, 7)) {
-            value = value.substring(7).trim();
-        }
-
-        String prefix = codePrefix();
-        if (!value.regionMatches(true, 0, prefix, 0, prefix.length())) {
-            return null;
-        }
-
-        return normalizeCode(value);
-    }
-
-    public DiscordResult verifyFromDiscord(String submittedCode, String discordId) {
+    public DiscordResult verifyFromDiscord(String submittedNickname, String discordId) {
         long now = System.currentTimeMillis();
         long lockedRemaining = lockRemaining(discordId, now);
         if (lockedRemaining > 0L) {
             return new DiscordResult(ResultType.LOCKED, null, null, lockedRemaining);
         }
 
-        String normalized = normalizeCode(submittedCode);
-        Session session;
+        String normalizedNickname = normalizeNickname(submittedNickname);
+        if (!normalizedNickname.matches("[a-z0-9_]{3,16}")) {
+            long newLock = recordFailure(discordId, now);
+            return new DiscordResult(newLock > 0L ? ResultType.LOCKED : ResultType.PENDING_NOT_FOUND, null, null, newLock);
+        }
 
+        Session session;
         synchronized (storageLock) {
             cleanupExpiredLocked(now);
-            UUID uuid = codeIndex.get(normalized);
+            UUID uuid = nicknameIndex.get(normalizedNickname);
             session = uuid == null ? null : sessions.get(uuid);
         }
 
-        if (session == null || session.expired(now) || !session.code().equalsIgnoreCase(normalized)) {
+        if (session == null || session.expired(now) || !normalizeNickname(session.username()).equals(normalizedNickname)) {
             long newLock = recordFailure(discordId, now);
-            return new DiscordResult(
-                    newLock > 0L ? ResultType.LOCKED : ResultType.INVALID_CODE,
-                    null,
-                    null,
-                    newLock
-            );
+            audit("VERIFY_REJECT nickname=" + safeAuditValue(submittedNickname) + " discord=" + discordId + " reason=NO_ACTIVE_PENDING");
+            return new DiscordResult(newLock > 0L ? ResultType.LOCKED : ResultType.PENDING_NOT_FOUND, null, null, newLock);
         }
 
         AccountLinkManager manager = accountManager();
@@ -386,16 +356,6 @@ public final class VerificationService {
         return true;
     }
 
-    public boolean isVerificationChannel(String guildId, String channelId) {
-        String configuredGuild = plugin.getConfig().getString("verification.discord.guild-id", "").trim();
-        String configuredChannel = plugin.getConfig().getString("verification.discord.verification-channel-id", "").trim();
-
-        if (configuredChannel.isEmpty() || !configuredChannel.equals(channelId)) {
-            return false;
-        }
-        return configuredGuild.isEmpty() || configuredGuild.equals(guildId);
-    }
-
     public long remainingMinutes(Session session) {
         if (session == null) {
             return 0L;
@@ -407,51 +367,42 @@ public final class VerificationService {
     private Session getOrCreateSession(UUID uuid, String username, String ipHash, Purpose purpose, String rawIp) {
         long now = System.currentTimeMillis();
         Session current = sessions.get(uuid);
-        boolean reuse = plugin.getConfig().getBoolean("verification.code.reuse-until-expired", true);
-        boolean regenerateOnIpChange = plugin.getConfig().getBoolean("verification.code.regenerate-on-ip-change", true);
-
         boolean samePurpose = current != null && current.purpose() == purpose;
         boolean sameIp = current != null && safeEquals(current.ipHash(), ipHash);
-        boolean canReuse = current != null
-                && !current.expired(now)
-                && reuse
-                && samePurpose
-                && (sameIp || !regenerateOnIpChange || ipMode() == IpMode.OFF);
+        boolean sameName = current != null && normalizeNickname(current.username()).equals(normalizeNickname(username));
 
-        if (canReuse) {
+        if (current != null && !current.expired(now) && samePurpose && sameIp && sameName) {
             return current;
         }
 
-        String reason;
-        if (current == null) {
-            reason = "NEW";
-        } else if (current.expired(now)) {
-            reason = "EXPIRED";
-        } else if (!samePurpose) {
-            reason = "PURPOSE_CHANGE";
-        } else if (!sameIp) {
-            reason = "IP_CHANGE";
-        } else {
-            reason = "ROTATE";
-        }
+        String reason = current == null ? "NEW"
+                : current.expired(now) ? "EXPIRED"
+                : !samePurpose ? "PURPOSE_CHANGE"
+                : !sameName ? "USERNAME_CHANGE"
+                : !sameIp ? "IP_CHANGE" : "REFRESH";
 
         Session next;
         synchronized (storageLock) {
-            Session old = sessions.remove(uuid);
-            if (old != null) {
-                codeIndex.remove(normalizeCode(old.code()));
+            removeSessionLocked(uuid);
+
+            String normalized = normalizeNickname(username);
+            UUID previousUuid = nicknameIndex.get(normalized);
+            if (previousUuid != null && !previousUuid.equals(uuid)) {
+                Session displaced = removeSessionLocked(previousUuid);
+                if (displaced != null) {
+                    audit("PENDING_REPLACED nickname=" + username + " oldUuid=" + previousUuid + " newUuid=" + uuid);
+                }
             }
 
-            String code = generateUniqueCodeLocked();
-            int expireMinutes = Math.max(1, plugin.getConfig().getInt("verification.code.expire-minutes", 15));
+            int expireMinutes = Math.max(1, plugin.getConfig().getInt("verification.pending.expire-minutes", 15));
             long expiresAt = now + expireMinutes * 60_000L;
-            next = new Session(uuid, username, code, ipHash, now, expiresAt, purpose);
+            next = new Session(uuid, username, ipHash, now, expiresAt, purpose);
             sessions.put(uuid, next);
-            codeIndex.put(normalizeCode(code), uuid);
+            nicknameIndex.put(normalized, uuid);
             savePendingLocked();
         }
 
-        audit("CODE_GENERATED reason=" + reason
+        audit("PENDING_CREATED reason=" + reason
                 + " purpose=" + purpose
                 + " player=" + username
                 + " uuid=" + uuid
@@ -463,9 +414,8 @@ public final class VerificationService {
         long now = System.currentTimeMillis();
         synchronized (storageLock) {
             Session current = sessions.get(session.uuid());
-            if (current != null && current.code().equalsIgnoreCase(session.code())) {
-                sessions.remove(session.uuid());
-                codeIndex.remove(normalizeCode(session.code()));
+            if (current != null && normalizeNickname(current.username()).equals(normalizeNickname(session.username()))) {
+                removeSessionLocked(session.uuid());
             }
 
             VerifiedMeta existing = verifiedMeta.get(session.uuid());
@@ -478,13 +428,20 @@ public final class VerificationService {
 
     private Session removeSession(UUID uuid) {
         synchronized (storageLock) {
-            Session removed = sessions.remove(uuid);
+            Session removed = removeSessionLocked(uuid);
             if (removed != null) {
-                codeIndex.remove(normalizeCode(removed.code()));
                 savePendingLocked();
             }
             return removed;
         }
+    }
+
+    private Session removeSessionLocked(UUID uuid) {
+        Session removed = sessions.remove(uuid);
+        if (removed != null) {
+            nicknameIndex.remove(normalizeNickname(removed.username()), uuid);
+        }
+        return removed;
     }
 
     private void loadPending() {
@@ -504,19 +461,18 @@ public final class VerificationService {
                 UUID uuid = UUID.fromString(key);
                 String base = "sessions." + key + ".";
                 String username = yaml.getString(base + "username", "unknown");
-                String code = yaml.getString(base + "code", "");
                 String ipHash = yaml.getString(base + "ip-hash", "");
                 long createdAt = yaml.getLong(base + "created-at", now);
                 long expiresAt = yaml.getLong(base + "expires-at", 0L);
                 Purpose purpose = Purpose.valueOf(yaml.getString(base + "purpose", Purpose.INITIAL_LINK.name()));
 
-                if (code.isBlank() || expiresAt <= now) {
+                if (username.isBlank() || expiresAt <= now) {
                     continue;
                 }
 
-                Session session = new Session(uuid, username, normalizeCode(code), ipHash, createdAt, expiresAt, purpose);
+                Session session = new Session(uuid, username, ipHash, createdAt, expiresAt, purpose);
                 sessions.put(uuid, session);
-                codeIndex.put(normalizeCode(code), uuid);
+                nicknameIndex.put(normalizeNickname(username), uuid);
             } catch (Exception exception) {
                 plugin.getLogger().warning("Mengabaikan pending session rusak: " + key);
             }
@@ -550,18 +506,11 @@ public final class VerificationService {
         }
     }
 
-    private void savePending() {
-        synchronized (storageLock) {
-            savePendingLocked();
-        }
-    }
-
     private void savePendingLocked() {
         YamlConfiguration yaml = new YamlConfiguration();
         for (Session session : sessions.values()) {
             String base = "sessions." + session.uuid() + ".";
             yaml.set(base + "username", session.username());
-            yaml.set(base + "code", session.code());
             yaml.set(base + "ip-hash", session.ipHash());
             yaml.set(base + "created-at", session.createdAt());
             yaml.set(base + "expires-at", session.expiresAt());
@@ -605,37 +554,12 @@ public final class VerificationService {
             }
         }
         for (UUID uuid : expired) {
-            Session removed = sessions.remove(uuid);
-            if (removed != null) {
-                codeIndex.remove(normalizeCode(removed.code()));
-            }
+            removeSessionLocked(uuid);
         }
     }
 
-    private String generateUniqueCodeLocked() {
-        int digits = Math.max(4, Math.min(10, plugin.getConfig().getInt("verification.code.digits", 6)));
-        String prefix = codePrefix();
-        String code;
-        do {
-            StringBuilder builder = new StringBuilder(prefix);
-            for (int i = 0; i < digits; i++) {
-                builder.append(ThreadLocalRandom.current().nextInt(10));
-            }
-            code = normalizeCode(builder.toString());
-        } while (codeIndex.containsKey(code));
-        return code;
-    }
-
-    private String codePrefix() {
-        String prefix = plugin.getConfig().getString("verification.code.prefix", "VPH-");
-        if (prefix == null || prefix.isBlank()) {
-            prefix = "VPH-";
-        }
-        return prefix.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private String normalizeCode(String code) {
-        return code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
+    private String normalizeNickname(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private IpMode ipMode() {
@@ -724,13 +648,8 @@ public final class VerificationService {
         String record = Instant.now() + " " + line + System.lineSeparator();
         synchronized (storageLock) {
             try {
-                Files.writeString(
-                        auditFile.toPath(),
-                        record,
-                        StandardCharsets.UTF_8,
-                        StandardOpenOption.CREATE,
-                        StandardOpenOption.APPEND
-                );
+                Files.writeString(auditFile.toPath(), record, StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
             } catch (IOException exception) {
                 plugin.getLogger().warning("Gagal menulis audit.log: " + exception.getMessage());
             }
@@ -757,6 +676,11 @@ public final class VerificationService {
             return out.append(":xxxx:xxxx").toString();
         }
         return "masked";
+    }
+
+    private String safeAuditValue(String value) {
+        if (value == null) return "null";
+        return value.replaceAll("[^A-Za-z0-9_]", "?").substring(0, Math.min(16, value.length()));
     }
 
     private boolean safeEquals(String a, String b) {
