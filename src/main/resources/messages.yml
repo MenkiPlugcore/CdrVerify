@@ -10,8 +10,9 @@ kick:
     &7Kode Verifikasi:
     &b&l%code%
 
-    &7Buka Discord Vephilim lalu kirim kode
-    &7tersebut di channel verifikasi.
+    &7Buka Discord Vephilim lalu gunakan
+    &f/verify code:%code%
+    &7di server Discord Vephilim.
 
     &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
@@ -27,7 +28,7 @@ kick:
     &7Kode Konfirmasi:
     &e&l%code%
 
-    &7Kirim kode di channel verifikasi Discord.
+    &7Gunakan &f/verify code:%code% &7di Discord.
     &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
   unavailable: |-
@@ -45,6 +46,31 @@ minecraft:
   force-conflict: "&cTidak dapat force link karena salah satu akun sudah terhubung. Unlink terlebih dahulu."
 
 discord:
+  panel: |-
+    🔐 **VEPHILIM ACCOUNT VERIFICATION**
+
+    Hubungkan akun Minecraft Java kamu dengan Discord sebelum masuk ke Vephilim Roleplay.
+
+    **Cara verifikasi**
+    1. Join server Minecraft untuk mendapatkan kode `VPH-XXXXXX`
+    2. Klik tombol **Verifikasi Akun** di bawah
+    3. Gunakan `/verify` dan masukkan kode tersebut
+    4. Setelah sukses, join kembali ke Minecraft
+
+    Kode bersifat sementara dan tidak boleh dibagikan.
+
+  button-help: |-
+    🔐 **Verifikasi Akun**
+
+    Gunakan slash command native Discord:
+    `/verify code:VPH-XXXXXX`
+
+    Ganti `VPH-XXXXXX` dengan kode yang muncul saat kamu mencoba join Minecraft.
+  button-cooldown: "⏳ Tunggu **%seconds% detik** sebelum menekan tombol lagi."
+  wrong-channel: "❌ Tombol verifikasi ini hanya berlaku di channel verifikasi Vephilim."
+  wrong-guild: "❌ Command ini hanya dapat digunakan di Discord Vephilim."
+  slash-disabled: "❌ Slash command verifikasi sedang dinonaktifkan oleh administrator."
+
   success: |-
     ✅ **VERIFIKASI BERHASIL**
     Minecraft: **%player%**
