@@ -1,0 +1,75 @@
+prefix: "&8[&bCdrVerify&8] &r"
+
+kick:
+  unverified: |-
+    &8&m--------------------------------
+    &b&lVEPHILIM ROLEPLAY
+    &fVerifikasi akun diperlukan
+    &8&m--------------------------------
+
+    &7Kode Verifikasi:
+    &b&l%code%
+
+    &7Buka Discord Vephilim lalu kirim kode
+    &7tersebut di channel verifikasi.
+
+    &7Kode berlaku selama &f%minutes% menit&7.
+    &7Discord: &b%invite%
+
+    &fSetelah berhasil, masuk kembali ke server.
+  ip-reverify: |-
+    &8&m--------------------------------
+    &e&lSECURITY CHECK
+    &fKonfirmasi Discord diperlukan
+    &8&m--------------------------------
+
+    &7IP baru terdeteksi untuk akun ini.
+    &7Kode Konfirmasi:
+    &e&l%code%
+
+    &7Kirim kode di channel verifikasi Discord.
+    &7Kode berlaku selama &f%minutes% menit&7.
+    &7Discord: &b%invite%
+  unavailable: |-
+    &cSistem verifikasi sedang tidak tersedia.
+    &7Silakan hubungi Staff Vephilim.
+
+minecraft:
+  admin-prefix: "&8[&bCdrVerify&8] &r"
+  reloaded: "&aConfiguration dan messages berhasil di-reload."
+  player-not-found: "&cPlayer tidak ditemukan: &f%player%"
+  no-pending: "&eTidak ada sesi pending untuk &f%player%&e."
+  reset: "&aSesi verifikasi &f%player% &atelah di-reset."
+  unlinked: "&aLink Discord untuk &f%player% &atelah dilepas."
+  force-success: "&aBerhasil menghubungkan &f%player% &ake Discord ID &f%discord_id%&a."
+  force-conflict: "&cTidak dapat force link karena salah satu akun sudah terhubung. Unlink terlebih dahulu."
+
+discord:
+  success: |-
+    ✅ **VERIFIKASI BERHASIL**
+    Minecraft: **%player%**
+    Status: **VERIFIED**
+
+    Silakan kembali ke Vephilim Roleplay dan join kembali.
+  reverify-success: |-
+    ✅ **KONFIRMASI BERHASIL**
+    Minecraft: **%player%**
+    IP baru telah dikonfirmasi.
+
+    Silakan join kembali ke Vephilim Roleplay.
+  invalid-code: |-
+    ❌ Kode verifikasi tidak valid atau sudah kedaluwarsa.
+    Join server Minecraft kembali untuk mendapatkan kode aktif.
+  locked: |-
+    ⛔ Terlalu banyak percobaan kode yang salah.
+    Coba lagi dalam **%minutes% menit**.
+  discord-already-linked: |-
+    ❌ Akun Discord ini sudah terhubung ke akun Minecraft lain.
+    Hubungi Staff Vephilim jika ini tidak sesuai.
+  minecraft-already-linked: |-
+    ❌ Akun Minecraft ini sudah terhubung ke Discord lain.
+    Hubungi Staff Vephilim jika ini tidak sesuai.
+  wrong-discord: |-
+    ❌ Kode keamanan ini harus dikonfirmasi menggunakan akun Discord yang sudah terhubung dengan Minecraft tersebut.
+  internal-error: |-
+    ❌ Verifikasi gagal karena kesalahan internal. Hubungi Staff Vephilim.
