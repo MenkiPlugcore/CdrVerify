@@ -5,8 +5,9 @@ verification:
   enabled: true
 
   code:
-    prefix: "VPH-"
-    digits: 6
+    # Empty prefix = numeric-only verification code, example: 4827
+    prefix: ""
+    digits: 4
     expire-minutes: 15
     reuse-until-expired: true
     regenerate-on-ip-change: true
@@ -25,7 +26,7 @@ verification:
       enabled: true
 
     # Keep false for a read-only verification channel.
-    # If enabled, users may paste VPH-XXXXXX directly into the channel.
+    # If enabled, users may paste the numeric verification code directly into the channel.
     allow-message-code: false
 
     # Persistent panel. Run /cdrverify panel once.
@@ -52,7 +53,8 @@ security:
 
   brute-force:
     enabled: true
-    max-failed-attempts: 5
+    # Numeric 4-digit codes have a smaller keyspace, so keep failed attempts limited.
+    max-failed-attempts: 3
     lock-minutes: 5
 
 bypass:
