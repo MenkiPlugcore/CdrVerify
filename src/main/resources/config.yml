@@ -20,10 +20,22 @@ verification:
     # Optional Discord role granted after successful verification.
     verified-role-id: ""
 
-    # Delete the player's code message from the verification channel when possible.
+    # Recommended UX: native Discord /verify command.
+    slash-command:
+      enabled: true
+
+    # Compatibility fallback. If true, users may also paste VPH-XXXXXX directly in the channel.
+    allow-message-code: true
+
+    # Persistent panel. Run /cdrverify panel once; the button keeps working after restarts.
+    panel:
+      button-label: "Verifikasi Akun"
+      button-cooldown-seconds: 3
+
+    # Delete a pasted code message from the verification channel when possible.
     delete-submitted-code: true
 
-    # Bot responses in the verification channel are automatically deleted after this many seconds.
+    # Bot responses for legacy message-code verification are deleted after this many seconds.
     # Set to 0 to keep responses.
     response-delete-seconds: 15
 
@@ -47,11 +59,12 @@ security:
     lock-minutes: 5
 
 bypass:
-  # Case-insensitive Minecraft usernames that can join without verification.
   usernames: []
-
-  # UUID strings that can join without verification.
   uuids: []
+
+maintenance:
+  # Periodic persistence checkpoint for pending/verified metadata.
+  checkpoint-interval-seconds: 60
 
 storage:
   pending-file: "pending.yml"
