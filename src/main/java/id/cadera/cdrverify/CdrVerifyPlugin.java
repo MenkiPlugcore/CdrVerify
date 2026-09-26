@@ -74,7 +74,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         validateStaticConfiguration();
 
         getLogger().info("CdrVerify v" + getDescription().getVersion() + " enabled.");
-        getLogger().info("Verification flow: Minecraft join -> Discord /verify -> rejoin.");
+        getLogger().info("Verification flow: Minecraft join -> code -> Discord /verify -> rejoin.");
     }
 
     @Override
@@ -246,7 +246,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         }
 
         CommandData command = new CommandData("verify", "Verifikasi akun Minecraft Vephilim")
-                .addOption(OptionType.STRING, "code", "Kode VPH-XXXXXX dari Minecraft", true);
+                .addOption(OptionType.STRING, "code", "Kode verifikasi dari layar login Minecraft", true);
 
         String guildId = getConfig().getString("verification.discord.guild-id", "").trim();
         PluginSlashCommand slash = guildId.isEmpty()
@@ -271,7 +271,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         var option = event.getOption("code");
         String code = option == null ? "" : option.getAsString();
         VerificationService.DiscordResult result = verificationService.verifyFromDiscord(code, event.getUser().getId());
-        String reply = discordResultMessage(result);
+        String reply = discordResultMessage(result, event.getUser().getName());
         event.getHook().sendMessage(reply).queue();
 
         if (result.type() == VerificationService.ResultType.SUCCESS
@@ -311,6 +311,10 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
     }
 
     public String discordResultMessage(VerificationService.DiscordResult result) {
+        return discordResultMessage(result, "Unknown");
+    }
+
+    public String discordResultMessage(VerificationService.DiscordResult result, String discordName) {
         String path = switch (result.type()) {
             case SUCCESS -> "discord.success";
             case REVERIFY_SUCCESS -> "discord.reverify-success";
@@ -323,6 +327,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         };
 
         Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("discord", discordName == null || discordName.isBlank() ? "Unknown" : discordName);
         placeholders.put("player", result.playerName() == null ? "Unknown" : result.playerName());
         placeholders.put("minutes", Long.toString(Math.max(1L, (result.remainingLockMillis() + 59_999L) / 60_000L)));
         return message(path, placeholders);
@@ -347,7 +352,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
     }
 
     public void sendSuccessDm(github.scarsz.discordsrv.dependencies.jda.api.entities.User user, String reply) {
-        if (!getConfig().getBoolean("verification.discord.dm-success", true) || user == null) {
+        if (!getConfig().getBoolean("verification.discord.dm-success", false) || user == null) {
             return;
         }
         user.openPrivateChannel().queue(channel ->
