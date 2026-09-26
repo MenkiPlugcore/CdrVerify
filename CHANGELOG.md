@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.0-SNAPSHOT
+
+Secure challenge-code verification update.
+
+### Changed
+
+- Restored the stronger `VPH-XXXXXX` one-time verification flow.
+- Players must try to join Minecraft first to receive an active verification code.
+- Discord verification uses native `/verify code:<kode>` with an ephemeral response.
+- Verification success now shows both Discord username and Minecraft nickname.
+- Verification channel can remain read-only for `@everyone`.
+- Legacy pasted-code verification is disabled by default.
+- Success DM is disabled by default because the slash-command response is already private.
+- Discord panel and button copy were rewritten to make the login-first flow clearer.
+
+### Security
+
+- Active code is bound to the pending Minecraft UUID session.
+- Code is one-time and removed after successful verification.
+- Code expires after a configurable TTL, default 15 minutes.
+- Active code is reused across repeated joins until expiry unless IP-session rules rotate it.
+- Brute-force lock and one-to-one Discord/Minecraft conflict checks remain enabled.
+
 ## 0.3.0-SNAPSHOT
 
 True Discord-first nickname verification update.
