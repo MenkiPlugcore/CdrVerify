@@ -9,7 +9,7 @@ depend: [DiscordSRV]
 commands:
   cdrverify:
     description: CdrVerify administration command
-    usage: /cdrverify <status|reset|unlink|code|force|panel|doctor|reload>
+    usage: /cdrverify <status|pending|reset|unlink|force|panel|doctor|reload>
     permission: cdrverify.admin
 
 permissions:
