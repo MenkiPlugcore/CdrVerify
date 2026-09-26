@@ -10,27 +10,33 @@ kick:
     &7Kode Verifikasi:
     &b&l%code%
 
-    &7Buka Discord Vephilim lalu gunakan
-    &f/verify code:%code%
-    &7di server Discord Vephilim.
+    &7Cara verifikasi:
+    &f1. &7Buka Discord Vephilim
+    &f2. &7Buka channel verifikasi akun
+    &f3. &7Klik &fVerifikasi Akun
+    &f4. &7Gunakan &f/verify code:%code%
 
     &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
 
-    &fSetelah berhasil, masuk kembali ke server.
+    &fSetelah VERIFIED, masuk kembali ke server.
+
   ip-reverify: |-
     &8&m--------------------------------
     &e&lSECURITY CHECK
     &fKonfirmasi Discord diperlukan
     &8&m--------------------------------
 
-    &7IP baru terdeteksi untuk akun ini.
+    &7Perubahan IP terdeteksi.
     &7Kode Konfirmasi:
     &e&l%code%
 
-    &7Gunakan &f/verify code:%code% &7di Discord.
+    &7Gunakan &f/verify code:%code%
+    &7di Discord Vephilim.
+
     &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
+
   unavailable: |-
     &cSistem verifikasi sedang tidak tersedia.
     &7Silakan hubungi Staff Vephilim.
@@ -51,21 +57,28 @@ discord:
 
     Hubungkan akun Minecraft Java kamu dengan Discord sebelum masuk ke Vephilim Roleplay.
 
-    **Cara verifikasi**
-    1. Join server Minecraft untuk mendapatkan kode `VPH-XXXXXX`
-    2. Klik tombol **Verifikasi Akun** di bawah
-    3. Gunakan `/verify` dan masukkan kode tersebut
-    4. Setelah sukses, join kembali ke Minecraft
+    **Sudah mencoba masuk ke server Minecraft?**
+    Gunakan kode verifikasi yang diberikan saat login untuk menghubungkan akunmu.
 
-    Kode bersifat sementara dan tidak boleh dibagikan.
+    **Cara verifikasi**
+    1. Coba join server Minecraft sampai muncul kode verifikasi
+    2. Klik tombol **Verifikasi Akun** di bawah
+    3. Gunakan `/verify` lalu masukkan kode tersebut
+    4. Setelah status **VERIFIED**, join kembali ke Minecraft
+
+    Kode bersifat sementara, satu kali pakai, dan tidak boleh dibagikan.
 
   button-help: |-
-    🔐 **Verifikasi Akun**
+    🔐 **VERIFIKASI AKUN**
 
-    Gunakan slash command native Discord:
+    Masukkan kode yang kamu dapat saat mencoba login ke Vephilim menggunakan:
     `/verify code:VPH-XXXXXX`
 
-    Ganti `VPH-XXXXXX` dengan kode yang muncul saat kamu mencoba join Minecraft.
+    Contoh:
+    `/verify code:VPH-482731`
+
+    Setelah berhasil, kamu cukup join kembali ke server Minecraft.
+
   button-cooldown: "⏳ Tunggu **%seconds% detik** sebelum menekan tombol lagi."
   wrong-channel: "❌ Tombol verifikasi ini hanya berlaku di channel verifikasi Vephilim."
   wrong-guild: "❌ Command ini hanya dapat digunakan di Discord Vephilim."
@@ -73,29 +86,52 @@ discord:
 
   success: |-
     ✅ **VERIFIKASI BERHASIL**
-    Minecraft: **%player%**
-    Status: **VERIFIED**
 
-    Silakan kembali ke Vephilim Roleplay dan join kembali.
+    Discord:
+    **%discord%**
+
+    Nick Minecraft:
+    **%player%**
+
+    Status:
+    **VERIFIED**
+
+    Silakan kembali ke Vephilim Roleplay.
+
   reverify-success: |-
     ✅ **KONFIRMASI BERHASIL**
-    Minecraft: **%player%**
-    IP baru telah dikonfirmasi.
 
-    Silakan join kembali ke Vephilim Roleplay.
+    Discord:
+    **%discord%**
+
+    Nick Minecraft:
+    **%player%**
+
+    Status:
+    **VERIFIED**
+
+    IP baru telah dikonfirmasi. Silakan join kembali ke Vephilim Roleplay.
+
   invalid-code: |-
-    ❌ Kode verifikasi tidak valid atau sudah kedaluwarsa.
-    Join server Minecraft kembali untuk mendapatkan kode aktif.
+    ❌ **KODE TIDAK VALID**
+
+    Kode salah, sudah digunakan, atau sudah kedaluwarsa.
+    Coba join Minecraft kembali untuk melihat kode aktif terbaru.
+
   locked: |-
     ⛔ Terlalu banyak percobaan kode yang salah.
     Coba lagi dalam **%minutes% menit**.
+
   discord-already-linked: |-
     ❌ Akun Discord ini sudah terhubung ke akun Minecraft lain.
     Hubungi Staff Vephilim jika ini tidak sesuai.
+
   minecraft-already-linked: |-
     ❌ Akun Minecraft ini sudah terhubung ke Discord lain.
     Hubungi Staff Vephilim jika ini tidak sesuai.
+
   wrong-discord: |-
     ❌ Kode keamanan ini harus dikonfirmasi menggunakan akun Discord yang sudah terhubung dengan Minecraft tersebut.
+
   internal-error: |-
     ❌ Verifikasi gagal karena kesalahan internal. Hubungi Staff Vephilim.
