@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -23,7 +24,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 public final class VerificationService {
 
@@ -103,6 +103,8 @@ public final class VerificationService {
         SESSION,
         STRICT
     }
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final CdrVerifyPlugin plugin;
     private final Object storageLock = new Object();
@@ -241,6 +243,13 @@ public final class VerificationService {
         }
 
         String prefix = codePrefix();
+        if (prefix.isEmpty()) {
+            if (!value.matches("\\d{" + codeDigits() + "}")) {
+                return null;
+            }
+            return normalizeCode(value);
+        }
+
         if (!value.regionMatches(true, 0, prefix, 0, prefix.length())) {
             return null;
         }
@@ -613,25 +622,26 @@ public final class VerificationService {
     }
 
     private String generateUniqueCodeLocked() {
-        int digits = Math.max(4, Math.min(10, plugin.getConfig().getInt("verification.code.digits", 6)));
+        int digits = codeDigits();
         String prefix = codePrefix();
         String code;
         do {
             StringBuilder builder = new StringBuilder(prefix);
             for (int i = 0; i < digits; i++) {
-                builder.append(ThreadLocalRandom.current().nextInt(10));
+                builder.append(SECURE_RANDOM.nextInt(10));
             }
             code = normalizeCode(builder.toString());
         } while (codeIndex.containsKey(code));
         return code;
     }
 
+    private int codeDigits() {
+        return Math.max(4, Math.min(10, plugin.getConfig().getInt("verification.code.digits", 4)));
+    }
+
     private String codePrefix() {
-        String prefix = plugin.getConfig().getString("verification.code.prefix", "VPH-");
-        if (prefix == null || prefix.isBlank()) {
-            prefix = "VPH-";
-        }
-        return prefix.trim().toUpperCase(Locale.ROOT);
+        String prefix = plugin.getConfig().getString("verification.code.prefix", "");
+        return prefix == null ? "" : prefix.trim().toUpperCase(Locale.ROOT);
     }
 
     private String normalizeCode(String code) {
