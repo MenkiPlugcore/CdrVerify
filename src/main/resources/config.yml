@@ -20,37 +20,34 @@ verification:
     # Optional Discord role granted after successful verification.
     verified-role-id: ""
 
-    # Recommended UX: native Discord /verify command.
+    # Main verification method.
     slash-command:
       enabled: true
 
-    # Compatibility fallback. If true, users may also paste VPH-XXXXXX directly in the channel.
-    allow-message-code: true
+    # Keep false for a read-only verification channel.
+    # If enabled, users may paste VPH-XXXXXX directly into the channel.
+    allow-message-code: false
 
-    # Persistent panel. Run /cdrverify panel once; the button keeps working after restarts.
+    # Persistent panel. Run /cdrverify panel once.
     panel:
       button-label: "Verifikasi Akun"
       button-cooldown-seconds: 3
 
-    # Delete a pasted code message from the verification channel when possible.
+    # Only used when allow-message-code is enabled.
     delete-submitted-code: true
-
-    # Bot responses for legacy message-code verification are deleted after this many seconds.
-    # Set to 0 to keep responses.
     response-delete-seconds: 15
 
-    # Also DM the player after successful verification.
-    dm-success: true
+    # Slash command replies are already ephemeral, so DM is off by default.
+    dm-success: false
 
 security:
   ip-binding:
     # OFF     = IP is ignored.
-    # SESSION = IP only protects an unfinished verification session. Recommended.
-    # STRICT  = a verified account must re-confirm from Discord after its IP changes.
+    # SESSION = IP protects only unfinished verification sessions. Recommended.
+    # STRICT  = verified accounts must re-confirm from Discord when IP changes.
     mode: "SESSION"
 
-    # Used when hashing IP addresses before writing them to disk.
-    # Change this to a long random value before production.
+    # Change this before production.
     hash-salt: "CHANGE-ME-CdrVerify"
 
   brute-force:
@@ -63,7 +60,6 @@ bypass:
   uuids: []
 
 maintenance:
-  # Periodic persistence checkpoint for pending/verified metadata.
   checkpoint-interval-seconds: 60
 
 storage:
