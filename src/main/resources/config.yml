@@ -1,0 +1,59 @@
+# CdrVerify configuration
+# Vephilim Roleplay account verification
+
+verification:
+  enabled: true
+
+  code:
+    prefix: "VPH-"
+    digits: 6
+    expire-minutes: 15
+    reuse-until-expired: true
+    regenerate-on-ip-change: true
+
+  discord:
+    # Required. Enable Developer Mode in Discord, then Copy Server ID / Channel ID.
+    guild-id: ""
+    verification-channel-id: ""
+    invite: ""
+
+    # Optional Discord role granted after successful verification.
+    verified-role-id: ""
+
+    # Delete the player's code message from the verification channel when possible.
+    delete-submitted-code: true
+
+    # Bot responses in the verification channel are automatically deleted after this many seconds.
+    # Set to 0 to keep responses.
+    response-delete-seconds: 15
+
+    # Also DM the player after successful verification.
+    dm-success: true
+
+security:
+  ip-binding:
+    # OFF     = IP is ignored.
+    # SESSION = IP only protects an unfinished verification session. Recommended.
+    # STRICT  = a verified account must re-confirm from Discord after its IP changes.
+    mode: "SESSION"
+
+    # Used when hashing IP addresses before writing them to disk.
+    # Change this to a long random value before production.
+    hash-salt: "CHANGE-ME-CdrVerify"
+
+  brute-force:
+    enabled: true
+    max-failed-attempts: 5
+    lock-minutes: 5
+
+bypass:
+  # Case-insensitive Minecraft usernames that can join without verification.
+  usernames: []
+
+  # UUID strings that can join without verification.
+  uuids: []
+
+storage:
+  pending-file: "pending.yml"
+  verified-meta-file: "verified-meta.yml"
+  audit-file: "audit.log"
