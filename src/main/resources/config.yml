@@ -1,15 +1,14 @@
 # CdrVerify configuration
 # Vephilim Roleplay account verification
 
+config-version: 3
+
 verification:
   enabled: true
 
-  code:
-    prefix: "VPH-"
-    digits: 6
+  # Player must have tried to join Minecraft recently before Discord can claim the nickname.
+  pending:
     expire-minutes: 15
-    reuse-until-expired: true
-    regenerate-on-ip-change: true
 
   discord:
     # Required. Enable Developer Mode in Discord, then Copy Server ID / Channel ID.
@@ -20,24 +19,14 @@ verification:
     # Optional Discord role granted after successful verification.
     verified-role-id: ""
 
-    # Recommended UX: native Discord /verify command.
+    # Native Discord command: /verify nick:<minecraft_nickname>
     slash-command:
       enabled: true
-
-    # Compatibility fallback. If true, users may also paste VPH-XXXXXX directly in the channel.
-    allow-message-code: true
 
     # Persistent panel. Run /cdrverify panel once; the button keeps working after restarts.
     panel:
       button-label: "Verifikasi Akun"
       button-cooldown-seconds: 3
-
-    # Delete a pasted code message from the verification channel when possible.
-    delete-submitted-code: true
-
-    # Bot responses for legacy message-code verification are deleted after this many seconds.
-    # Set to 0 to keep responses.
-    response-delete-seconds: 15
 
     # Also DM the player after successful verification.
     dm-success: true
@@ -46,13 +35,14 @@ security:
   ip-binding:
     # OFF     = IP is ignored.
     # SESSION = IP only protects an unfinished verification session. Recommended.
-    # STRICT  = a verified account must re-confirm from Discord after its IP changes.
+    # STRICT  = a verified account must re-confirm from its linked Discord after its IP changes.
     mode: "SESSION"
 
     # Used when hashing IP addresses before writing them to disk.
     # Change this to a long random value before production.
     hash-salt: "CHANGE-ME-CdrVerify"
 
+  # Wrong/unknown nickname claims are rate-limited per Discord account.
   brute-force:
     enabled: true
     max-failed-attempts: 5
@@ -63,7 +53,6 @@ bypass:
   uuids: []
 
 maintenance:
-  # Periodic persistence checkpoint for pending/verified metadata.
   checkpoint-interval-seconds: 60
 
 storage:
