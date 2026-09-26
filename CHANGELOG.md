@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.2.0-SNAPSHOT
+
+Discord UX and production-hardening update.
+
+### Added
+
+- Native Discord `/verify code:<kode>` command with ephemeral responses.
+- Persistent verification panel with **Verifikasi Akun** button.
+- `/cdrverify panel` to publish the verification panel.
+- `/cdrverify doctor` to validate Discord guild/channel/role configuration.
+- JDA listener lifecycle management with delayed registration until DiscordSRV is ready.
+- Dynamic validation for guild, verification channel, verified role, and role hierarchy.
+- Button interaction cooldown.
+- Periodic storage checkpoint.
+- Config switch for legacy pasted-code verification.
+- Slash-command refresh on CdrVerify reload.
+
+### Changed
+
+- Verification instructions now prioritize the native Discord `/verify` command.
+- Discord success/error formatting is shared between slash-command and legacy message flows.
+- Version bumped to `0.2.0-SNAPSHOT`.
+
+### Compatibility note
+
+DiscordSRV 1.30.5 ships JDA 4.4.1, which supports buttons but does not provide Discord Modal APIs. For that reason CdrVerify uses a persistent button plus native slash-command input instead of introducing a second Discord bot/JDA runtime.
+
 ## 0.1.0-SNAPSHOT
 
 Initial CdrVerify development build.
