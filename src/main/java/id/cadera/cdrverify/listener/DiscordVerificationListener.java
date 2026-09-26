@@ -20,7 +20,7 @@ public final class DiscordVerificationListener {
 
     @Subscribe(priority = ListenerPriority.MONITOR)
     public void onDiscordMessage(DiscordGuildMessageReceivedEvent event) {
-        if (!plugin.getConfig().getBoolean("verification.discord.allow-message-code", true)) {
+        if (!plugin.getConfig().getBoolean("verification.discord.allow-message-code", false)) {
             return;
         }
         if (event.getAuthor() == null || event.getAuthor().isBot()) {
@@ -45,7 +45,7 @@ public final class DiscordVerificationListener {
                 event.getAuthor().getId()
         );
 
-        String reply = plugin.discordResultMessage(result);
+        String reply = plugin.discordResultMessage(result, event.getAuthor().getName());
         int deleteSeconds = Math.max(0, plugin.getConfig().getInt("verification.discord.response-delete-seconds", 15));
 
         event.getChannel().sendMessage(reply).queue(message -> {
