@@ -2,7 +2,7 @@
 
 Discord-first account verification untuk **Vephilim Roleplay**.
 
-CdrVerify menahan player Minecraft yang belum terverifikasi pada tahap pre-login, membuat kode sementara seperti `VPH-482731`, lalu menyelesaikan verifikasi sepenuhnya dari Discord. Setelah akun Discord berhasil dihubungkan ke UUID Minecraft, player cukup join kembali dan langsung masuk server.
+CdrVerify menahan player Minecraft Java yang belum terverifikasi pada tahap pre-login, membuat kode sementara seperti `VPH-482731`, lalu menyelesaikan verifikasi dari Discord. Setelah Discord ID berhasil dihubungkan ke UUID Minecraft melalui DiscordSRV, player cukup join kembali.
 
 ## Target
 
@@ -10,7 +10,7 @@ CdrVerify menahan player Minecraft yang belum terverifikasi pada tahap pre-login
 - Java 21
 - DiscordSRV 1.30.5
 
-## Flow
+## Flow v0.2.0
 
 ```text
 Minecraft first join
@@ -22,19 +22,22 @@ UUID belum linked
 Generate VPH-XXXXXX
         |
         v
-Player ditolak dengan instruksi Discord
+Player ditolak + diberi kode
         |
         v
-Kirim VPH-XXXXXX di #verifikasi
+Buka #verifikasi Discord
         |
         v
-CdrVerify validasi sesi + Discord ID
+Klik [ Verifikasi Akun ]
         |
         v
-DiscordSRV link: Discord ID <-> Minecraft UUID
+/verify code:VPH-XXXXXX
         |
         v
-Kode dihancurkan
+Ephemeral validation result
+        |
+        v
+Discord ID <-> Minecraft UUID
         |
         v
 Player join kembali
@@ -43,125 +46,75 @@ Player join kembali
 VERIFIED / ALLOWED
 ```
 
-## Fitur v0.1.0
+## Kenapa bukan Discord Modal?
 
-- First-join verification gate pada `AsyncPlayerPreLoginEvent`.
-- Kode configurable dengan prefix `VPH-` dan default 6 digit.
-- TTL default 15 menit dan dapat diubah dari `config.yml`.
-- Kode aktif dipertahankan saat player disconnect/rejoin.
-- Pending session disimpan ke disk sehingga tidak hilang hanya karena restart server.
-- Verifikasi dilakukan langsung dari channel Discord khusus.
-- Link yang sukses dibuat melalui `AccountLinkManager` DiscordSRV.
-- Kebijakan 1 Discord = 1 Minecraft dan 1 Minecraft = 1 Discord sebelum link dilakukan.
-- IP binding `OFF`, `SESSION`, atau `STRICT`.
-- Default `SESSION`: perubahan IP selama sesi pending dapat merotasi kode, tetapi akun yang sudah verified tidak dipaksa verifikasi ulang.
-- IP disimpan sebagai SHA-256 fingerprint dengan salt, bukan raw IP.
-- Brute-force lock untuk percobaan kode salah.
-- Optional Discord Verified role.
-- Optional delete pesan kode dari channel verifikasi.
-- Optional DM sukses.
-- Audit log.
-- Admin commands untuk inspeksi/reset/unlink/force link.
+DiscordSRV 1.30.5 menggunakan JDA 4.4.1. JDA tersebut mendukung Discord buttons tetapi belum menyediakan Modal API. CdrVerify sengaja tidak menambahkan JDA/bot kedua karena dapat menimbulkan classloader dan gateway-session conflict. UX yang dipakai adalah persistent button + native Discord slash command dengan ephemeral response.
 
-## Instalasi
+## Setup
 
-1. Install **DiscordSRV** dan pastikan bot DiscordSRV sudah online.
-2. Build/install `CdrVerify-0.1.0-SNAPSHOT.jar` ke folder `plugins/`.
-3. Start server sekali agar `plugins/CdrVerify/config.yml` dibuat.
-4. Isi minimal konfigurasi berikut:
+1. Install DiscordSRV 1.30.5 dan pastikan bot online.
+2. Install hasil build CdrVerify ke `plugins/`.
+3. Start server sekali.
+4. Isi `plugins/CdrVerify/config.yml`:
 
 ```yaml
 verification:
   discord:
     guild-id: "ID_SERVER_DISCORD"
     verification-channel-id: "ID_CHANNEL_VERIFIKASI"
-    invite: "discord.gg/contoh"
+    invite: "discord.gg/vephilim"
     verified-role-id: "ID_ROLE_VERIFIED"
 
 security:
   ip-binding:
     mode: "SESSION"
-    hash-salt: "GANTI_DENGAN_RANDOM_SECRET_YANG_PANJANG"
+    hash-salt: "GANTI_DENGAN_RANDOM_SECRET_PANJANG"
 ```
 
-5. Restart server atau jalankan `/cdrverify reload`.
+5. Jalankan `/cdrverify reload`.
+6. Jalankan `/cdrverify doctor` dan pastikan Discord environment `VALID`.
+7. Jalankan `/cdrverify panel` sekali untuk mengirim panel permanen ke channel verifikasi.
 
-### Mendapatkan Discord ID
+Panel tetap dapat digunakan setelah restart karena button custom ID bersifat stateless dan listener didaftarkan kembali ketika DiscordSRV/JDA siap.
 
-Aktifkan **Developer Mode** di Discord, lalu gunakan **Copy Server ID**, **Copy Channel ID**, atau **Copy User ID**.
+## Discord UX
 
-## Penting: DiscordSRV built-in linking
-
-CdrVerify adalah gate verifikasi utama. Agar tidak terjadi double-kick atau dua sistem kode yang berjalan bersamaan:
-
-- Jangan aktifkan modul **Require Link** DiscordSRV bersamaan dengan CdrVerify.
-- Jangan petakan channel `#verifikasi` CdrVerify sebagai channel built-in `link` DiscordSRV.
-
-CdrVerify tetap menggunakan database/link manager DiscordSRV sebagai sumber link akun resmi, tetapi lifecycle kode `VPH-XXXXXX` dikelola oleh CdrVerify.
-
-## Permission bot Discord
-
-Minimum untuk channel verifikasi:
-
-- View Channel
-- Send Messages
-- Read Message History
-
-Jika `delete-submitted-code: true`, berikan permission **Manage Messages** agar kode player dapat dibersihkan dari channel.
-
-Jika `verified-role-id` dipakai, bot juga membutuhkan **Manage Roles** dan role bot harus berada di atas role Verified.
-
-## Konfigurasi kode
-
-```yaml
-verification:
-  code:
-    prefix: "VPH-"
-    digits: 6
-    expire-minutes: 15
-    reuse-until-expired: true
-    regenerate-on-ip-change: true
-```
-
-Contoh TTL:
-
-- 10 menit: `expire-minutes: 10`
-- 15 menit: `expire-minutes: 15`
-- 20 menit: `expire-minutes: 20`
-
-## IP binding
-
-```yaml
-security:
-  ip-binding:
-    mode: "SESSION"
-```
-
-Mode:
-
-- `OFF`: IP tidak ikut menentukan sesi verifikasi.
-- `SESSION`: IP hanya melindungi sesi yang belum selesai. Ini default yang direkomendasikan.
-- `STRICT`: perubahan IP akun yang sudah linked meminta konfirmasi ulang dari Discord yang sama.
-
-`SESSION` tidak mencabut verifikasi player hanya karena ISP, hotspot, modem, atau jaringan player mengganti IP.
-
-## Discord verification
-
-Player cukup mengirim salah satu bentuk berikut di channel verifikasi:
+Player mendapat kode dari kick screen Minecraft, misalnya:
 
 ```text
 VPH-482731
 ```
 
-atau
+Di Discord player menggunakan:
 
 ```text
-verify VPH-482731
+/verify code:VPH-482731
 ```
 
-CdrVerify hanya memproses pesan yang memiliki prefix kode yang benar dan berasal dari guild/channel yang dikonfigurasi.
+Hasil command bersifat ephemeral. Jika verifikasi sukses, link disimpan oleh AccountLinkManager DiscordSRV dan role Verified dapat diberikan otomatis.
 
-## Admin commands
+Sebagai compatibility fallback, kode juga masih dapat ditempel langsung di channel verifikasi jika:
+
+```yaml
+verification:
+  discord:
+    allow-message-code: true
+```
+
+## Security
+
+- UUID Minecraft adalah identitas utama Minecraft.
+- Discord User ID adalah identitas Discord.
+- 1 Discord tidak dapat mengambil alih UUID yang sudah terhubung ke Discord lain.
+- Pending code memiliki TTL configurable.
+- Brute-force lock tersedia.
+- IP mode: `OFF`, `SESSION`, `STRICT`.
+- Default yang direkomendasikan: `SESSION`.
+- IP disimpan sebagai SHA-256 fingerprint dengan salt, bukan raw IP di metadata verifikasi.
+- Button Discord memiliki cooldown.
+- Pending dan verified metadata di-checkpoint berkala serta di-flush saat shutdown.
+
+## Commands
 
 ```text
 /cdrverify status <player|uuid>
@@ -169,6 +122,8 @@ CdrVerify hanya memproses pesan yang memiliki prefix kode yang benar dan berasal
 /cdrverify reset <player|uuid>
 /cdrverify unlink <player|uuid>
 /cdrverify force <player|uuid> <discord-id>
+/cdrverify panel
+/cdrverify doctor
 /cdrverify reload
 ```
 
@@ -178,24 +133,21 @@ Permission:
 cdrverify.admin
 ```
 
-Default permission: OP.
+## Discord bot permissions
 
-`force` tidak akan menimpa link milik akun lain. Lakukan `unlink` secara eksplisit terlebih dahulu jika memang ingin memindahkan kepemilikan akun.
+Untuk verification channel:
 
-## Storage
+- View Channel
+- Send Messages
+- Read Message History
+- Manage Messages, jika `delete-submitted-code: true`
+- Manage Roles, jika `verified-role-id` digunakan
 
-```text
-plugins/CdrVerify/
-├── config.yml
-├── messages.yml
-├── pending.yml
-├── verified-meta.yml
-└── audit.log
-```
+Role DiscordSRV bot harus berada di atas role Verified.
 
-- `pending.yml`: token/sesi yang masih aktif.
-- `verified-meta.yml`: metadata keamanan CdrVerify; link Discord resmi tetap dikelola DiscordSRV.
-- `audit.log`: aktivitas generate, verify, reverify, reset, unlink, dan force-link.
+## DiscordSRV built-in linking
+
+CdrVerify adalah verification gate utama. Jangan aktifkan Require Link bawaan DiscordSRV bersamaan dengan CdrVerify karena akan menghasilkan dua lifecycle kode/kick yang berbeda. CdrVerify tetap memakai AccountLinkManager DiscordSRV sebagai sumber link akun resmi.
 
 ## Build
 
@@ -206,9 +158,9 @@ mvn clean verify
 Output:
 
 ```text
-target/CdrVerify-0.1.0-SNAPSHOT.jar
+target/CdrVerify-0.2.0-SNAPSHOT.jar
 ```
 
 ## Status
 
-`0.1.0-SNAPSHOT` adalah fondasi pertama. Fokus versi ini adalah account-linking flow, persistence, IP/session security, dan Discord channel verification. UI Discord berbasis button/modal dapat ditambahkan sebagai lapisan UX di atas engine yang sama tanpa mengubah model sesi/link akun.
+`0.2.0-SNAPSHOT` fokus pada Discord UX, slash verification, persistent button panel, diagnostics, dan runtime hardening. Setelah lolos test langsung di Vephilim, branch ini dapat dipromosikan menjadi kandidat `1.0.0`.
