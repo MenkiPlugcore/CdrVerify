@@ -41,13 +41,13 @@ public final class JoinGuardListener implements Listener {
 
         VerificationService.Session session = evaluation.session();
         String messagePath = session.purpose() == VerificationService.Purpose.IP_REVERIFY
-                ? "kick.ip-reverify-v3"
-                : "kick.unverified-v3";
+                ? "kick.ip-reverify"
+                : "kick.unverified";
 
         event.disallow(
                 AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
                 plugin.component(messagePath, Map.of(
-                        "player", session.username(),
+                        "code", session.code(),
                         "minutes", Long.toString(verificationService.remainingMinutes(session)),
                         "invite", plugin.getConfig().getString("verification.discord.invite", "")
                 ))

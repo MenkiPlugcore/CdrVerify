@@ -1,43 +1,36 @@
 prefix: "&8[&bCdrVerify&8] &r"
 
 kick:
-  unverified-v3: |-
+  unverified: |-
     &8&m--------------------------------
     &b&lVEPHILIM ROLEPLAY
-    &fAkun belum terverifikasi
+    &fVerifikasi akun diperlukan
     &8&m--------------------------------
 
-    &7Nick Minecraft:
-    &b&l%player%
+    &7Kode Verifikasi:
+    &b&l%code%
 
-    &7Buka Discord Vephilim:
-    &b%invite%
+    &7Buka Discord Vephilim lalu gunakan
+    &f/verify code:%code%
+    &7di server Discord Vephilim.
 
-    &7Di channel verifikasi, klik tombol
-    &fVerifikasi Akun &7lalu gunakan:
-    &f/verify nick:%player%
-
-    &7Pending verifikasi berlaku sekitar
-    &f%minutes% menit&7 sejak percobaan join.
+    &7Kode berlaku selama &f%minutes% menit&7.
+    &7Discord: &b%invite%
 
     &fSetelah berhasil, masuk kembali ke server.
-
-  ip-reverify-v3: |-
+  ip-reverify: |-
     &8&m--------------------------------
     &e&lSECURITY CHECK
     &fKonfirmasi Discord diperlukan
     &8&m--------------------------------
 
-    &7Perubahan IP terdeteksi untuk:
-    &e&l%player%
+    &7IP baru terdeteksi untuk akun ini.
+    &7Kode Konfirmasi:
+    &e&l%code%
 
-    &7Buka Discord Vephilim lalu gunakan:
-    &f/verify nick:%player%
-
-    &7Gunakan akun Discord yang memang sudah
-    &7terhubung dengan akun Minecraft tersebut.
+    &7Gunakan &f/verify code:%code% &7di Discord.
+    &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
-
   unavailable: |-
     &cSistem verifikasi sedang tidak tersedia.
     &7Silakan hubungi Staff Vephilim.
@@ -53,84 +46,56 @@ minecraft:
   force-conflict: "&cTidak dapat force link karena salah satu akun sudah terhubung. Unlink terlebih dahulu."
 
 discord:
-  panel-v3: |-
+  panel: |-
     🔐 **VEPHILIM ACCOUNT VERIFICATION**
 
     Hubungkan akun Minecraft Java kamu dengan Discord sebelum masuk ke Vephilim Roleplay.
 
     **Cara verifikasi**
-    1. Coba join server Minecraft menggunakan akun yang ingin dihubungkan
-    2. Catat nickname Minecraft kamu
-    3. Klik tombol **Verifikasi Akun** di bawah
-    4. Gunakan `/verify nick:<nickname>`
-    5. Setelah sukses, join kembali ke Minecraft
+    1. Join server Minecraft untuk mendapatkan kode `VPH-XXXXXX`
+    2. Klik tombol **Verifikasi Akun** di bawah
+    3. Gunakan `/verify` dan masukkan kode tersebut
+    4. Setelah sukses, join kembali ke Minecraft
 
-    Verifikasi hanya dapat dilakukan untuk nickname yang memiliki pending join aktif.
+    Kode bersifat sementara dan tidak boleh dibagikan.
 
-  button-help-v3: |-
+  button-help: |-
     🔐 **Verifikasi Akun**
 
-    Pastikan kamu sudah mencoba join Vephilim menggunakan akun Minecraft yang ingin dihubungkan.
+    Gunakan slash command native Discord:
+    `/verify code:VPH-XXXXXX`
 
-    Lalu gunakan:
-    `/verify nick:Caderaaa`
-
-    Ganti `Caderaaa` dengan nickname Minecraft kamu sendiri.
-
+    Ganti `VPH-XXXXXX` dengan kode yang muncul saat kamu mencoba join Minecraft.
   button-cooldown: "⏳ Tunggu **%seconds% detik** sebelum menekan tombol lagi."
-  wrong-channel: "❌ Verifikasi hanya dapat digunakan di channel verifikasi Vephilim."
+  wrong-channel: "❌ Tombol verifikasi ini hanya berlaku di channel verifikasi Vephilim."
   wrong-guild: "❌ Command ini hanya dapat digunakan di Discord Vephilim."
   slash-disabled: "❌ Slash command verifikasi sedang dinonaktifkan oleh administrator."
 
-  success-v3: |-
+  success: |-
     ✅ **VERIFIKASI BERHASIL**
+    Minecraft: **%player%**
+    Status: **VERIFIED**
 
-    Discord:
-    **%discord%**
-
-    Nick Minecraft:
-    **%player%**
-
-    Status:
-    **VERIFIED**
-
-    Silakan kembali ke Vephilim Roleplay.
-
-  reverify-success-v3: |-
+    Silakan kembali ke Vephilim Roleplay dan join kembali.
+  reverify-success: |-
     ✅ **KONFIRMASI BERHASIL**
+    Minecraft: **%player%**
+    IP baru telah dikonfirmasi.
 
-    Discord:
-    **%discord%**
-
-    Nick Minecraft:
-    **%player%**
-
-    Status:
-    **VERIFIED**
-
-    IP baru telah dikonfirmasi. Silakan kembali ke Vephilim Roleplay.
-
-  pending-not-found: |-
-    ❌ **PENDING TIDAK DITEMUKAN**
-
-    Nick tersebut belum memiliki pending join aktif atau sesinya sudah kedaluwarsa.
-
-    Coba join Vephilim menggunakan nickname Minecraft kamu terlebih dahulu, lalu jalankan `/verify` lagi.
-
-  locked-v3: |-
-    ⛔ Terlalu banyak percobaan nickname yang tidak valid.
+    Silakan join kembali ke Vephilim Roleplay.
+  invalid-code: |-
+    ❌ Kode verifikasi tidak valid atau sudah kedaluwarsa.
+    Join server Minecraft kembali untuk mendapatkan kode aktif.
+  locked: |-
+    ⛔ Terlalu banyak percobaan kode yang salah.
     Coba lagi dalam **%minutes% menit**.
-
   discord-already-linked: |-
     ❌ Akun Discord ini sudah terhubung ke akun Minecraft lain.
     Hubungi Staff Vephilim jika ini tidak sesuai.
-
   minecraft-already-linked: |-
     ❌ Akun Minecraft ini sudah terhubung ke Discord lain.
     Hubungi Staff Vephilim jika ini tidak sesuai.
-
-  wrong-discord-v3: |-
-    ❌ Konfirmasi keamanan ini harus dilakukan menggunakan akun Discord yang sudah terhubung dengan nickname Minecraft tersebut.
-
+  wrong-discord: |-
+    ❌ Kode keamanan ini harus dikonfirmasi menggunakan akun Discord yang sudah terhubung dengan Minecraft tersebut.
   internal-error: |-
     ❌ Verifikasi gagal karena kesalahan internal. Hubungi Staff Vephilim.

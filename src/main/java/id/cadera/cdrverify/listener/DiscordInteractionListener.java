@@ -47,6 +47,6 @@ public final class DiscordInteractionListener extends ListenerAdapter {
         }
 
         buttonCooldown.put(event.getUser().getId(), now + cooldownSeconds * 1000L);
-        event.deferReply(true).setContent(plugin.message("discord.button-help-v3")).queue();
+        event.deferReply(true).setContent(plugin.message("discord.button-help")).queue();
     }
 }
