@@ -2,7 +2,7 @@
 
 Discord-first account verification untuk **Vephilim Roleplay**.
 
-CdrVerify menahan player Minecraft Java yang belum terverifikasi pada tahap pre-login, membuat kode sementara seperti `VPH-482731`, lalu menyelesaikan verifikasi dari Discord. Setelah Discord ID berhasil dihubungkan ke UUID Minecraft melalui DiscordSRV, player cukup join kembali.
+CdrVerify menahan player Minecraft Java yang belum terverifikasi pada tahap pre-login, mencatat UUID + nickname sebagai pending session, lalu menyelesaikan verifikasi dari Discord. Player tidak perlu lagi menyalin kode dari Minecraft.
 
 ## Target
 
@@ -10,7 +10,7 @@ CdrVerify menahan player Minecraft Java yang belum terverifikasi pada tahap pre-
 - Java 21
 - DiscordSRV 1.30.5
 
-## Flow v0.2.0
+## Flow v0.3.0
 
 ```text
 Minecraft first join
@@ -19,10 +19,10 @@ Minecraft first join
 UUID belum linked
         |
         v
-Generate VPH-XXXXXX
+CdrVerify catat pending UUID + nickname
         |
         v
-Player ditolak + diberi kode
+Player ditolak + diarahkan ke Discord
         |
         v
 Buka #verifikasi Discord
@@ -31,24 +31,22 @@ Buka #verifikasi Discord
 Klik [ Verifikasi Akun ]
         |
         v
-/verify code:VPH-XXXXXX
+/verify nick:Caderaaa
         |
         v
-Ephemeral validation result
+CdrVerify cari pending nickname aktif
         |
         v
 Discord ID <-> Minecraft UUID
         |
         v
-Player join kembali
+VERIFIED
         |
         v
-VERIFIED / ALLOWED
+Player join kembali
 ```
 
-## Kenapa bukan Discord Modal?
-
-DiscordSRV 1.30.5 menggunakan JDA 4.4.1. JDA tersebut mendukung Discord buttons tetapi belum menyediakan Modal API. CdrVerify sengaja tidak menambahkan JDA/bot kedua karena dapat menimbulkan classloader dan gateway-session conflict. UX yang dipakai adalah persistent button + native Discord slash command dengan ephemeral response.
+Tidak ada lagi token `VPH-XXXXXX` pada flow player.
 
 ## Setup
 
@@ -59,6 +57,9 @@ DiscordSRV 1.30.5 menggunakan JDA 4.4.1. JDA tersebut mendukung Discord buttons 
 
 ```yaml
 verification:
+  pending:
+    expire-minutes: 15
+
   discord:
     guild-id: "ID_SERVER_DISCORD"
     verification-channel-id: "ID_CHANNEL_VERIFIKASI"
@@ -73,52 +74,58 @@ security:
 
 5. Jalankan `/cdrverify reload`.
 6. Jalankan `/cdrverify doctor` dan pastikan Discord environment `VALID`.
-7. Jalankan `/cdrverify panel` sekali untuk mengirim panel permanen ke channel verifikasi.
-
-Panel tetap dapat digunakan setelah restart karena button custom ID bersifat stateless dan listener didaftarkan kembali ketika DiscordSRV/JDA siap.
+7. Jalankan `/cdrverify panel` sekali untuk mengirim panel permanen.
 
 ## Discord UX
 
-Player mendapat kode dari kick screen Minecraft, misalnya:
+Setelah player mencoba join Minecraft, player menjalankan:
 
 ```text
-VPH-482731
+/verify nick:Caderaaa
 ```
 
-Di Discord player menggunakan:
+Command hanya menerima nickname yang memiliki pending join aktif dan belum kedaluwarsa. Hasil command bersifat ephemeral.
+
+Contoh sukses:
 
 ```text
-/verify code:VPH-482731
-```
+✅ VERIFIKASI BERHASIL
 
-Hasil command bersifat ephemeral. Jika verifikasi sukses, link disimpan oleh AccountLinkManager DiscordSRV dan role Verified dapat diberikan otomatis.
+Discord:
+CandraFirmansyah
 
-Sebagai compatibility fallback, kode juga masih dapat ditempel langsung di channel verifikasi jika:
+Nick Minecraft:
+Caderaaa
 
-```yaml
-verification:
-  discord:
-    allow-message-code: true
+Status:
+VERIFIED
+
+Silakan kembali ke Vephilim Roleplay.
 ```
 
 ## Security
 
-- UUID Minecraft adalah identitas utama Minecraft.
-- Discord User ID adalah identitas Discord.
+- UUID Minecraft tetap menjadi identitas utama Minecraft.
+- Discord User ID menjadi identitas Discord.
 - 1 Discord tidak dapat mengambil alih UUID yang sudah terhubung ke Discord lain.
-- Pending code memiliki TTL configurable.
-- Brute-force lock tersedia.
-- IP mode: `OFF`, `SESSION`, `STRICT`.
+- Nickname hanya dapat diklaim saat ada pending join aktif.
+- Pending default kedaluwarsa setelah 15 menit.
+- Percobaan nickname salah/unknown terkena brute-force lock.
+- IP mode tersedia: `OFF`, `SESSION`, `STRICT`.
 - Default yang direkomendasikan: `SESSION`.
-- IP disimpan sebagai SHA-256 fingerprint dengan salt, bukan raw IP di metadata verifikasi.
+- IP disimpan sebagai SHA-256 fingerprint dengan salt.
+- `STRICT` mengharuskan perubahan IP dikonfirmasi dari Discord yang sudah terhubung.
 - Button Discord memiliki cooldown.
-- Pending dan verified metadata di-checkpoint berkala serta di-flush saat shutdown.
+- Pending dan verified metadata di-checkpoint berkala dan di-flush saat shutdown.
+- Plugin memperingatkan administrator jika server menggunakan `online-mode=false` karena nickname-only claim menjadi lebih lemah.
+
+> Catatan: nickname-only verification mengoptimalkan UX, tetapi tidak sekuat challenge token atau autentikasi Microsoft. Gunakan `online-mode=true` untuk model ini jika memungkinkan.
 
 ## Commands
 
 ```text
 /cdrverify status <player|uuid>
-/cdrverify code <player|uuid>
+/cdrverify pending <player|uuid>
 /cdrverify reset <player|uuid>
 /cdrverify unlink <player|uuid>
 /cdrverify force <player|uuid> <discord-id>
@@ -140,14 +147,22 @@ Untuk verification channel:
 - View Channel
 - Send Messages
 - Read Message History
-- Manage Messages, jika `delete-submitted-code: true`
+- Use Application Commands
 - Manage Roles, jika `verified-role-id` digunakan
 
 Role DiscordSRV bot harus berada di atas role Verified.
 
+Member biasa tidak perlu permission `Send Messages` karena verification memakai slash command.
+
 ## DiscordSRV built-in linking
 
-CdrVerify adalah verification gate utama. Jangan aktifkan Require Link bawaan DiscordSRV bersamaan dengan CdrVerify karena akan menghasilkan dua lifecycle kode/kick yang berbeda. CdrVerify tetap memakai AccountLinkManager DiscordSRV sebagai sumber link akun resmi.
+CdrVerify adalah verification gate utama. Jangan aktifkan Require Link bawaan DiscordSRV bersamaan dengan CdrVerify. CdrVerify tetap menggunakan AccountLinkManager DiscordSRV sebagai sumber link akun resmi.
+
+## Upgrade dari v0.2.x
+
+Pending session lama yang masih memiliki field `code` tetap dapat dibaca karena v0.3.0 mengabaikan field tersebut dan menggunakan UUID + username + expiry. Setelah save berikutnya, field code lama tidak ditulis lagi.
+
+`messages.yml` memakai key baru `*-v3` untuk flow yang berubah, sehingga instalasi lama dapat menerima pesan baru tanpa menimpa custom message lama secara paksa.
 
 ## Build
 
@@ -158,9 +173,9 @@ mvn clean verify
 Output:
 
 ```text
-target/CdrVerify-0.2.0-SNAPSHOT.jar
+target/CdrVerify-0.3.0-SNAPSHOT.jar
 ```
 
 ## Status
 
-`0.2.0-SNAPSHOT` fokus pada Discord UX, slash verification, persistent button panel, diagnostics, dan runtime hardening. Setelah lolos test langsung di Vephilim, branch ini dapat dipromosikan menjadi kandidat `1.0.0`.
+`0.3.0-SNAPSHOT` adalah kandidat Discord-first nickname flow. Setelah lolos runtime test langsung di Vephilim, versi ini dapat dipromosikan menuju `1.0.0`.
