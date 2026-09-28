@@ -74,7 +74,8 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
         validateStaticConfiguration();
 
         getLogger().info("CdrVerify v" + getDescription().getVersion() + " enabled.");
-        getLogger().info("Verification flow: Minecraft join -> code -> Discord /verify -> rejoin.");
+        getLogger().info("Verification flow: Minecraft join -> 4-digit code -> Discord direct message -> rejoin.");
+        getLogger().info("Login security: STRICT trusted-IP challenge supported.");
     }
 
     @Override
@@ -179,9 +180,9 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
             getLogger().warning("Ganti security.ip-binding.hash-salt sebelum production.");
         }
 
-        String mode = getConfig().getString("security.ip-binding.mode", "SESSION").toUpperCase();
+        String mode = getConfig().getString("security.ip-binding.mode", "STRICT").toUpperCase();
         if (!mode.equals("OFF") && !mode.equals("SESSION") && !mode.equals("STRICT")) {
-            getLogger().warning("security.ip-binding.mode tidak valid: " + mode + ". Fallback: SESSION.");
+            getLogger().warning("security.ip-binding.mode tidak valid: " + mode + ". Fallback: STRICT.");
         }
     }
 
@@ -241,7 +242,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
 
     @Override
     public Set<PluginSlashCommand> getSlashCommands() {
-        if (!getConfig().getBoolean("verification.discord.slash-command.enabled", true)) {
+        if (!getConfig().getBoolean("verification.discord.slash-command.enabled", false)) {
             return Collections.emptySet();
         }
 
@@ -257,7 +258,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
 
     @SlashCommand(path = "verify", deferReply = true, deferEphemeral = true)
     public void onDiscordVerifyCommand(SlashCommandEvent event) {
-        if (!getConfig().getBoolean("verification.discord.slash-command.enabled", true)) {
+        if (!getConfig().getBoolean("verification.discord.slash-command.enabled", false)) {
             event.getHook().sendMessage(message("discord.slash-disabled")).queue();
             return;
         }
@@ -298,7 +299,7 @@ public final class CdrVerifyPlugin extends JavaPlugin implements SlashCommandPro
                 return;
             }
 
-            String buttonLabel = getConfig().getString("verification.discord.panel.button-label", "Verifikasi Akun");
+            String buttonLabel = getConfig().getString("verification.discord.panel.button-label", "Cara Verifikasi");
             channel.sendMessage(message("discord.panel"))
                     .setActionRow(Button.primary(DiscordInteractionListener.VERIFY_BUTTON_ID, buttonLabel))
                     .queue(
