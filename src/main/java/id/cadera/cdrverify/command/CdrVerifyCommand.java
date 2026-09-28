@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = List.of(
-            "status", "reset", "unlink", "code", "force", "panel", "doctor", "reload"
+            "status", "reset", "unlink", "code", "force", "trusted", "revoke-trusted", "panel", "doctor", "reload"
     );
 
     private final CdrVerifyPlugin plugin;
@@ -56,6 +56,8 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
             case "reset" -> reset(sender, args);
             case "unlink" -> unlink(sender, args);
             case "force" -> force(sender, args);
+            case "trusted" -> trusted(sender, args);
+            case "revoke-trusted" -> revokeTrusted(sender, args);
             case "panel" -> panel(sender);
             case "doctor" -> doctor(sender);
             default -> {
@@ -80,6 +82,7 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
         boolean valid = plugin.validateDiscordEnvironment();
         boolean directCode = plugin.getConfig().getBoolean("verification.discord.allow-message-code", true);
         boolean slash = plugin.getConfig().getBoolean("verification.discord.slash-command.enabled", false);
+        boolean trusted = plugin.getConfig().getBoolean("security.ip-binding.trusted.enabled", true);
 
         sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
         sender.sendMessage(plugin.legacyComponent("&b&lCdrVerify Doctor"));
@@ -89,7 +92,10 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(plugin.legacyComponent("&7Auto-delete submitted code: " +
                 (plugin.getConfig().getBoolean("verification.discord.delete-submitted-code", true) ? "&aENABLED" : "&cDISABLED")));
         sender.sendMessage(plugin.legacyComponent("&7IP mode: &f" +
-                plugin.getConfig().getString("security.ip-binding.mode", "SESSION")));
+                plugin.getConfig().getString("security.ip-binding.mode", "STRICT")));
+        sender.sendMessage(plugin.legacyComponent("&7Trusted IP: " + (trusted ? "&aENABLED" : "&cDISABLED")
+                + " &8(max &f" + verificationService.trustedIpMaxEntries()
+                + "&8, TTL &f" + verificationService.trustedIpTtlDays() + " hari&8)"));
         sender.sendMessage(plugin.legacyComponent("&7Code TTL: &f" +
                 plugin.getConfig().getInt("verification.code.expire-minutes", 15) + " menit"));
         sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
@@ -127,11 +133,71 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(plugin.legacyComponent("&7Expires: &f~" + verificationService.remainingMinutes(pending) + " menit"));
         }
 
+        sender.sendMessage(plugin.legacyComponent("&7Trusted IPs: &f" + snapshot.trustedIps().size()
+                + "&8/&f" + verificationService.trustedIpMaxEntries()));
+
         if (snapshot.lastIpHash() != null && !snapshot.lastIpHash().isBlank()) {
             String hash = snapshot.lastIpHash();
-            sender.sendMessage(plugin.legacyComponent("&7IP fingerprint: &8" + hash.substring(0, Math.min(12, hash.length())) + "..."));
+            sender.sendMessage(plugin.legacyComponent("&7Last IP fingerprint: &8" + shortHash(hash) + "..."));
         }
         sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
+        return true;
+    }
+
+    private boolean trusted(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(plugin.legacyComponent("&cUsage: /cdrverify trusted <player|uuid>"));
+            return true;
+        }
+        OfflinePlayer player = resolvePlayer(args[1]);
+        if (player == null) {
+            sendPlayerNotFound(sender, args[1]);
+            return true;
+        }
+
+        String name = displayName(player, args[1]);
+        List<VerificationService.TrustedIpSnapshot> entries = verificationService.trustedIps(player.getUniqueId());
+
+        sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
+        sender.sendMessage(plugin.legacyComponent("&b&lTrusted IPs &7- &f" + name));
+        sender.sendMessage(plugin.legacyComponent("&7Slots: &f" + entries.size() + "&8/&f" + verificationService.trustedIpMaxEntries()
+                + " &8| &7TTL: &f" + verificationService.trustedIpTtlDays() + " hari"));
+
+        if (entries.isEmpty()) {
+            sender.sendMessage(plugin.legacyComponent("&eBelum ada trusted IP aktif."));
+        } else {
+            long now = System.currentTimeMillis();
+            for (int i = 0; i < entries.size(); i++) {
+                VerificationService.TrustedIpSnapshot entry = entries.get(i);
+                long ageMillis = Math.max(0L, now - entry.lastSeenAt());
+                long ageDays = ageMillis / 86_400_000L;
+                long ageHours = (ageMillis / 3_600_000L) % 24L;
+                String age = ageDays > 0 ? ageDays + "hri " + ageHours + "j" : ageHours + "j";
+                sender.sendMessage(plugin.legacyComponent("&7#" + (i + 1) + " &f" + shortHash(entry.fingerprint())
+                        + "... &8- terakhir dipakai &f" + age + " &7lalu"));
+            }
+        }
+
+        sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
+        return true;
+    }
+
+    private boolean revokeTrusted(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(plugin.legacyComponent("&cUsage: /cdrverify revoke-trusted <player|uuid>"));
+            return true;
+        }
+        OfflinePlayer player = resolvePlayer(args[1]);
+        if (player == null) {
+            sendPlayerNotFound(sender, args[1]);
+            return true;
+        }
+
+        String name = displayName(player, args[1]);
+        int removed = verificationService.revokeTrustedIps(player.getUniqueId());
+        sender.sendMessage(plugin.legacyComponent("&8[&bCdrVerify&8] &aTrusted IP &f" + name
+                + " &atelah dihapus. &8(&f" + removed + " IP&8)"));
+        sender.sendMessage(plugin.legacyComponent("&7Login berikutnya pada mode STRICT akan meminta konfirmasi Discord lagi."));
         return true;
     }
 
@@ -218,6 +284,8 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
                 plugin.legacyComponent("&f/" + label + " reset <player> &8- &7hapus sesi pending"),
                 plugin.legacyComponent("&f/" + label + " unlink <player> &8- &7lepas link Discord"),
                 plugin.legacyComponent("&f/" + label + " force <player> <discord-id> &8- &7force link aman"),
+                plugin.legacyComponent("&f/" + label + " trusted <player> &8- &7lihat trusted IP"),
+                plugin.legacyComponent("&f/" + label + " revoke-trusted <player> &8- &7hapus semua trusted IP"),
                 plugin.legacyComponent("&f/" + label + " panel &8- &7kirim panel verifikasi Discord"),
                 plugin.legacyComponent("&f/" + label + " doctor &8- &7cek kesiapan Discord/config"),
                 plugin.legacyComponent("&f/" + label + " reload &8- &7reload config/messages"),
@@ -244,6 +312,11 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
 
     private String displayName(OfflinePlayer player, String fallback) {
         return player.getName() == null ? fallback : player.getName();
+    }
+
+    private String shortHash(String hash) {
+        if (hash == null || hash.isBlank()) return "none";
+        return hash.substring(0, Math.min(12, hash.length()));
     }
 
     @Override
