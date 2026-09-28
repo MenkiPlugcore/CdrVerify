@@ -7,14 +7,14 @@ kick:
     &fVerifikasi akun diperlukan
     &8&m--------------------------------
 
-    &7Kode Verifikasi:
+    &7Verify code:
     &b&l%code%
 
     &7Cara verifikasi:
     &f1. &7Buka Discord Vephilim
     &f2. &7Buka channel verifikasi akun
-    &f3. &7Klik &fVerifikasi Akun
-    &f4. &7Gunakan &f/verify code:%code%
+    &f3. &7Ketik langsung kode &f%code%
+    &f4. &7Tunggu status &aVERIFIED
 
     &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
@@ -28,11 +28,11 @@ kick:
     &8&m--------------------------------
 
     &7Perubahan IP terdeteksi.
-    &7Kode Konfirmasi:
+    &7Verify code:
     &e&l%code%
 
-    &7Gunakan &f/verify code:%code%
-    &7di Discord Vephilim.
+    &7Ketik langsung kode &f%code%
+    &7di channel verifikasi Discord Vephilim.
 
     &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
@@ -55,31 +55,33 @@ discord:
   panel: |-
     🔐 **VEPHILIM ACCOUNT VERIFICATION**
 
-    Hubungkan akun Minecraft Java kamu dengan Discord sebelum masuk ke Vephilim Roleplay.
-
-    **Sudah mencoba masuk ke server Minecraft?**
-    Gunakan kode 4 digit yang diberikan saat login untuk menghubungkan akunmu.
+    Hubungkan akun Minecraft kamu dengan Discord sebelum masuk ke Vephilim Roleplay.
 
     **Cara verifikasi**
-    1. Coba join server Minecraft sampai muncul kode verifikasi 4 digit
-    2. Klik tombol **Verifikasi Akun** di bawah
-    3. Gunakan `/verify` lalu masukkan kode tersebut
-    4. Setelah status **VERIFIED**, join kembali ke Minecraft
+    1. Coba join server Minecraft sampai muncul **Verify code** 4 digit
+    2. Kembali ke channel ini
+    3. Ketik langsung kode tersebut, contoh: `2331`
+    4. Pesan kode akan dihapus otomatis oleh sistem
+    5. Setelah status **VERIFIED**, join kembali ke Minecraft
 
-    Kode bersifat sementara, satu kali pakai, dan tidak boleh dibagikan.
+    Tidak perlu menggunakan `/verify`.
+    Kode bersifat sementara, satu kali pakai, dan jangan dibagikan ke orang lain.
 
   button-help: |-
-    🔐 **VERIFIKASI AKUN**
+    🔐 **CARA VERIFIKASI**
 
-    Masukkan kode 4 digit yang kamu dapat saat mencoba login ke Vephilim menggunakan:
-    `/verify code:4827`
+    Coba login ke Vephilim terlebih dahulu untuk mendapatkan kode 4 digit.
+    Setelah itu, ketik langsung kodenya di channel verifikasi.
 
-    Setelah berhasil, kamu cukup join kembali ke server Minecraft.
+    Contoh:
+    `2331`
+
+    Tidak perlu menggunakan `/verify`.
 
   button-cooldown: "⏳ Tunggu **%seconds% detik** sebelum menekan tombol lagi."
   wrong-channel: "❌ Tombol verifikasi ini hanya berlaku di channel verifikasi Vephilim."
-  wrong-guild: "❌ Command ini hanya dapat digunakan di Discord Vephilim."
-  slash-disabled: "❌ Slash command verifikasi sedang dinonaktifkan oleh administrator."
+  wrong-guild: "❌ Verifikasi ini hanya dapat digunakan di Discord Vephilim."
+  slash-disabled: "❌ `/verify` tidak digunakan. Ketik langsung kode 4 digit di channel verifikasi."
 
   success: |-
     ✅ **VERIFIKASI BERHASIL**
