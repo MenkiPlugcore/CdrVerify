@@ -78,13 +78,16 @@ public final class CdrVerifyCommand implements CommandExecutor, TabCompleter {
 
     private boolean doctor(CommandSender sender) {
         boolean valid = plugin.validateDiscordEnvironment();
+        boolean directCode = plugin.getConfig().getBoolean("verification.discord.allow-message-code", true);
+        boolean slash = plugin.getConfig().getBoolean("verification.discord.slash-command.enabled", false);
+
         sender.sendMessage(plugin.legacyComponent("&8&m--------------------------------"));
         sender.sendMessage(plugin.legacyComponent("&b&lCdrVerify Doctor"));
         sender.sendMessage(plugin.legacyComponent("&7Discord environment: " + (valid ? "&aVALID" : "&cINVALID")));
-        sender.sendMessage(plugin.legacyComponent("&7Slash /verify: " +
-                (plugin.getConfig().getBoolean("verification.discord.slash-command.enabled", true) ? "&aENABLED" : "&cDISABLED")));
-        sender.sendMessage(plugin.legacyComponent("&7Message-code fallback: " +
-                (plugin.getConfig().getBoolean("verification.discord.allow-message-code", true) ? "&aENABLED" : "&cDISABLED")));
+        sender.sendMessage(plugin.legacyComponent("&7Direct code message: " + (directCode ? "&aENABLED" : "&cDISABLED")));
+        sender.sendMessage(plugin.legacyComponent("&7Slash /verify: " + (slash ? "&aENABLED" : "&cDISABLED")));
+        sender.sendMessage(plugin.legacyComponent("&7Auto-delete submitted code: " +
+                (plugin.getConfig().getBoolean("verification.discord.delete-submitted-code", true) ? "&aENABLED" : "&cDISABLED")));
         sender.sendMessage(plugin.legacyComponent("&7IP mode: &f" +
                 plugin.getConfig().getString("security.ip-binding.mode", "SESSION")));
         sender.sendMessage(plugin.legacyComponent("&7Code TTL: &f" +
