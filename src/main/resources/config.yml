@@ -45,12 +45,20 @@ verification:
 security:
   ip-binding:
     # OFF     = IP is ignored.
-    # SESSION = IP protects only unfinished verification sessions. Recommended.
-    # STRICT  = verified accounts must re-confirm from Discord when IP changes.
-    mode: "SESSION"
+    # SESSION = IP protects only unfinished verification sessions.
+    # STRICT  = verified accounts must confirm unknown IPs through their linked Discord.
+    mode: "STRICT"
 
     # Change this before production.
     hash-salt: "CHANGE-ME-CdrVerify"
+
+    # Trusted login protection for STRICT mode.
+    trusted:
+      enabled: true
+      # Maximum remembered IP fingerprints per verified Minecraft account.
+      max-entries: 3
+      # A trusted IP expires if it has not been used for this many days.
+      ttl-days: 30
 
   brute-force:
     enabled: true
