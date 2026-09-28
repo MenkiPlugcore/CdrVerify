@@ -17,6 +17,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -83,16 +85,26 @@ public final class VerificationService {
     ) {
     }
 
+    public record TrustedIpSnapshot(String fingerprint, long lastSeenAt) {
+    }
+
     public record StatusSnapshot(
             UUID uuid,
             String username,
             String discordId,
             Session pending,
-            String lastIpHash
+            String lastIpHash,
+            List<TrustedIpSnapshot> trustedIps
     ) {
     }
 
-    private record VerifiedMeta(String discordId, String ipHash, long verifiedAt, long lastSeenAt) {
+    private record VerifiedMeta(
+            String discordId,
+            String ipHash,
+            long verifiedAt,
+            long lastSeenAt,
+            Map<String, Long> trustedIps
+    ) {
     }
 
     private record AttemptState(int failures, long lockedUntil) {
@@ -105,6 +117,7 @@ public final class VerificationService {
     }
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final long DAY_MILLIS = 86_400_000L;
 
     private final CdrVerifyPlugin plugin;
     private final Object storageLock = new Object();
@@ -143,6 +156,7 @@ public final class VerificationService {
             loadVerifiedMeta();
             cleanupExpiredLocked(System.currentTimeMillis());
             savePendingLocked();
+            saveVerifiedMetaLocked();
         }
     }
 
@@ -202,19 +216,74 @@ public final class VerificationService {
             }
 
             VerifiedMeta current = verifiedMeta.get(uuid);
-            if (current == null || !safeEquals(current.discordId(), discordId) || !safeEquals(current.ipHash(), ipHash)) {
-                long now = System.currentTimeMillis();
-                verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, current == null ? now : current.verifiedAt(), now));
-                saveVerifiedMeta();
+            long now = System.currentTimeMillis();
+            Map<String, Long> trusted = current == null ? new HashMap<>() : new HashMap<>(current.trustedIps());
+            long verifiedAt = current == null ? now : current.verifiedAt();
+            verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, verifiedAt, now, trusted));
+            saveVerifiedMeta();
+            return JoinEvaluation.allow();
+        }
+
+        if (!trustedIpEnabled()) {
+            return evaluateLegacyStrict(uuid, username, discordId, ipHash, maskedIpSource);
+        }
+
+        long now = System.currentTimeMillis();
+        VerifiedMeta current = verifiedMeta.get(uuid);
+
+        if (current == null || !safeEquals(current.discordId(), discordId)) {
+            Map<String, Long> trusted = new HashMap<>();
+            addTrustedIpLocked(trusted, ipHash, now);
+            verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, now, now, trusted));
+            saveVerifiedMeta();
+            audit("TRUST_BOOTSTRAP player=" + username + " uuid=" + uuid + " ip=" + shortFingerprint(ipHash));
+            return JoinEvaluation.allow();
+        }
+
+        Map<String, Long> trusted = pruneTrustedCopy(current.trustedIps(), now);
+
+        // Admin force-link has no source IP. Trust the first real login once.
+        if (trusted.isEmpty() && (current.ipHash() == null || current.ipHash().isBlank())) {
+            addTrustedIpLocked(trusted, ipHash, now);
+            verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, current.verifiedAt(), now, trusted));
+            saveVerifiedMeta();
+            audit("TRUST_BOOTSTRAP player=" + username + " uuid=" + uuid + " ip=" + shortFingerprint(ipHash));
+            return JoinEvaluation.allow();
+        }
+
+        if (trusted.containsKey(ipHash)) {
+            trusted.put(ipHash, now);
+            verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, current.verifiedAt(), now, trusted));
+            saveVerifiedMeta();
+            if (sessions.containsKey(uuid)) {
+                removeSession(uuid);
             }
             return JoinEvaluation.allow();
         }
 
+        // Persist pruning before the player completes a new-IP challenge.
+        if (trusted.size() != current.trustedIps().size()) {
+            verifiedMeta.put(uuid, new VerifiedMeta(discordId, current.ipHash(), current.verifiedAt(), current.lastSeenAt(), trusted));
+            saveVerifiedMeta();
+        }
+
+        Session session = getOrCreateSession(uuid, username, ipHash, Purpose.IP_REVERIFY, maskedIpSource);
+        return JoinEvaluation.deny(session);
+    }
+
+    private JoinEvaluation evaluateLegacyStrict(
+            UUID uuid,
+            String username,
+            String discordId,
+            String ipHash,
+            String maskedIpSource
+    ) {
         VerifiedMeta current = verifiedMeta.get(uuid);
         long now = System.currentTimeMillis();
 
-        if (current == null || !safeEquals(current.discordId(), discordId) || current.ipHash() == null || current.ipHash().isBlank()) {
-            verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, now, now));
+        if (current == null || !safeEquals(current.discordId(), discordId)
+                || current.ipHash() == null || current.ipHash().isBlank()) {
+            verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, now, now, new HashMap<>()));
             saveVerifiedMeta();
             return JoinEvaluation.allow();
         }
@@ -223,6 +292,8 @@ public final class VerificationService {
             if (sessions.containsKey(uuid)) {
                 removeSession(uuid);
             }
+            verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, current.verifiedAt(), now, current.trustedIps()));
+            saveVerifiedMeta();
             return JoinEvaluation.allow();
         }
 
@@ -302,7 +373,8 @@ public final class VerificationService {
 
                 completeSession(session, discordId, true);
                 clearAttempts(discordId);
-                audit("IP_REVERIFY_SUCCESS player=" + session.username() + " uuid=" + session.uuid() + " discord=" + discordId);
+                audit("IP_REVERIFY_SUCCESS player=" + session.username() + " uuid=" + session.uuid()
+                        + " discord=" + discordId + " trusted=" + shortFingerprint(session.ipHash()));
                 return new DiscordResult(ResultType.REVERIFY_SUCCESS, session, session.username(), 0L);
             }
 
@@ -350,7 +422,53 @@ public final class VerificationService {
             }
         }
         VerifiedMeta meta = verifiedMeta.get(uuid);
-        return new StatusSnapshot(uuid, username, discordId, getSession(uuid).orElse(null), meta == null ? null : meta.ipHash());
+        return new StatusSnapshot(
+                uuid,
+                username,
+                discordId,
+                getSession(uuid).orElse(null),
+                meta == null ? null : meta.ipHash(),
+                trustedIps(uuid)
+        );
+    }
+
+    public List<TrustedIpSnapshot> trustedIps(UUID uuid) {
+        synchronized (storageLock) {
+            VerifiedMeta current = verifiedMeta.get(uuid);
+            if (current == null || current.trustedIps().isEmpty()) {
+                return List.of();
+            }
+
+            long now = System.currentTimeMillis();
+            Map<String, Long> trusted = pruneTrustedCopy(current.trustedIps(), now);
+            if (trusted.size() != current.trustedIps().size()) {
+                verifiedMeta.put(uuid, new VerifiedMeta(
+                        current.discordId(), current.ipHash(), current.verifiedAt(), current.lastSeenAt(), trusted
+                ));
+                saveVerifiedMetaLocked();
+            }
+
+            return trusted.entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()))
+                    .map(entry -> new TrustedIpSnapshot(entry.getKey(), entry.getValue()))
+                    .toList();
+        }
+    }
+
+    public int revokeTrustedIps(UUID uuid) {
+        synchronized (storageLock) {
+            VerifiedMeta current = verifiedMeta.get(uuid);
+            if (current == null) {
+                return 0;
+            }
+            int removed = current.trustedIps().size();
+            verifiedMeta.put(uuid, new VerifiedMeta(
+                    current.discordId(), current.ipHash(), current.verifiedAt(), current.lastSeenAt(), new HashMap<>()
+            ));
+            saveVerifiedMetaLocked();
+            audit("TRUST_REVOKE_ALL uuid=" + uuid + " count=" + removed);
+            return removed;
+        }
     }
 
     public void resetSession(UUID uuid) {
@@ -388,7 +506,7 @@ public final class VerificationService {
         }
 
         long now = System.currentTimeMillis();
-        verifiedMeta.put(uuid, new VerifiedMeta(discordId, "", now, now));
+        verifiedMeta.put(uuid, new VerifiedMeta(discordId, "", now, now, new HashMap<>()));
         saveVerifiedMeta();
         resetSession(uuid);
         audit("FORCE_LINK player=" + username + " uuid=" + uuid + " discord=" + discordId);
@@ -471,15 +589,23 @@ public final class VerificationService {
     private void completeSession(Session session, String discordId, boolean reverify) {
         long now = System.currentTimeMillis();
         synchronized (storageLock) {
-            Session current = sessions.get(session.uuid());
-            if (current != null && current.code().equalsIgnoreCase(session.code())) {
+            Session currentSession = sessions.get(session.uuid());
+            if (currentSession != null && currentSession.code().equalsIgnoreCase(session.code())) {
                 sessions.remove(session.uuid());
                 codeIndex.remove(normalizeCode(session.code()));
             }
 
             VerifiedMeta existing = verifiedMeta.get(session.uuid());
-            long verifiedAt = reverify && existing != null ? existing.verifiedAt() : now;
-            verifiedMeta.put(session.uuid(), new VerifiedMeta(discordId, session.ipHash(), verifiedAt, now));
+            long verifiedAt = existing == null || !reverify ? now : existing.verifiedAt();
+            Map<String, Long> trusted = existing == null
+                    ? new HashMap<>()
+                    : pruneTrustedCopy(existing.trustedIps(), now);
+
+            if (trustedIpEnabled() && session.ipHash() != null && !session.ipHash().isBlank()) {
+                addTrustedIpLocked(trusted, session.ipHash(), now);
+            }
+
+            verifiedMeta.put(session.uuid(), new VerifiedMeta(discordId, session.ipHash(), verifiedAt, now, trusted));
             savePendingLocked();
             saveVerifiedMetaLocked();
         }
@@ -543,16 +669,35 @@ public final class VerificationService {
             return;
         }
 
+        long now = System.currentTimeMillis();
         for (String key : root.getKeys(false)) {
             try {
                 UUID uuid = UUID.fromString(key);
                 String base = "players." + key + ".";
-                verifiedMeta.put(uuid, new VerifiedMeta(
-                        yaml.getString(base + "discord-id", ""),
-                        yaml.getString(base + "ip-hash", ""),
-                        yaml.getLong(base + "verified-at", 0L),
-                        yaml.getLong(base + "last-seen-at", 0L)
-                ));
+                String discordId = yaml.getString(base + "discord-id", "");
+                String ipHash = yaml.getString(base + "ip-hash", "");
+                long verifiedAt = yaml.getLong(base + "verified-at", 0L);
+                long lastSeenAt = yaml.getLong(base + "last-seen-at", 0L);
+                int trustedVersion = yaml.getInt(base + "trusted-ip-version", 0);
+
+                Map<String, Long> trusted = new HashMap<>();
+                ConfigurationSection trustedSection = yaml.getConfigurationSection(base + "trusted-ips");
+                if (trustedSection != null) {
+                    for (String fingerprint : trustedSection.getKeys(false)) {
+                        long seen = trustedSection.getLong(fingerprint, lastSeenAt > 0L ? lastSeenAt : now);
+                        if (!fingerprint.isBlank()) {
+                            trusted.put(fingerprint, seen);
+                        }
+                    }
+                }
+
+                // Seamless migration from v0.4.x single-IP metadata.
+                if (trustedVersion < 1 && !ipHash.isBlank() && trusted.isEmpty()) {
+                    trusted.put(ipHash, lastSeenAt > 0L ? lastSeenAt : now);
+                }
+
+                trusted = pruneTrustedCopy(trusted, now);
+                verifiedMeta.put(uuid, new VerifiedMeta(discordId, ipHash, verifiedAt, lastSeenAt, trusted));
             } catch (Exception exception) {
                 plugin.getLogger().warning("Mengabaikan verified metadata rusak: " + key);
             }
@@ -594,6 +739,10 @@ public final class VerificationService {
             yaml.set(base + "ip-hash", meta.ipHash());
             yaml.set(base + "verified-at", meta.verifiedAt());
             yaml.set(base + "last-seen-at", meta.lastSeenAt());
+            yaml.set(base + "trusted-ip-version", 1);
+            for (Map.Entry<String, Long> trusted : meta.trustedIps().entrySet()) {
+                yaml.set(base + "trusted-ips." + trusted.getKey(), trusted.getValue());
+            }
         }
         saveYaml(yaml, verifiedMetaFile);
     }
@@ -619,6 +768,65 @@ public final class VerificationService {
                 codeIndex.remove(normalizeCode(removed.code()));
             }
         }
+    }
+
+    private Map<String, Long> pruneTrustedCopy(Map<String, Long> source, long now) {
+        Map<String, Long> trusted = new HashMap<>();
+        if (source == null || source.isEmpty()) {
+            return trusted;
+        }
+
+        long ttl = trustedIpTtlMillis();
+        for (Map.Entry<String, Long> entry : source.entrySet()) {
+            String fingerprint = entry.getKey();
+            long lastSeen = entry.getValue() == null ? 0L : entry.getValue();
+            if (fingerprint == null || fingerprint.isBlank()) {
+                continue;
+            }
+            if (lastSeen <= 0L || now - lastSeen <= ttl) {
+                trusted.put(fingerprint, lastSeen <= 0L ? now : lastSeen);
+            }
+        }
+        return trusted;
+    }
+
+    private void addTrustedIpLocked(Map<String, Long> trusted, String ipHash, long now) {
+        if (ipHash == null || ipHash.isBlank()) {
+            return;
+        }
+
+        if (!trusted.containsKey(ipHash)) {
+            int max = trustedIpMaxEntries();
+            while (trusted.size() >= max) {
+                String oldest = trusted.entrySet().stream()
+                        .min(Map.Entry.comparingByValue())
+                        .map(Map.Entry::getKey)
+                        .orElse(null);
+                if (oldest == null) {
+                    break;
+                }
+                trusted.remove(oldest);
+            }
+        }
+        trusted.put(ipHash, now);
+    }
+
+    private boolean trustedIpEnabled() {
+        return plugin.getConfig().getBoolean("security.ip-binding.trusted.enabled", true);
+    }
+
+    public int trustedIpMaxEntries() {
+        return Math.max(1, Math.min(10,
+                plugin.getConfig().getInt("security.ip-binding.trusted.max-entries", 3)));
+    }
+
+    public int trustedIpTtlDays() {
+        return Math.max(1,
+                plugin.getConfig().getInt("security.ip-binding.trusted.ttl-days", 30));
+    }
+
+    private long trustedIpTtlMillis() {
+        return trustedIpTtlDays() * DAY_MILLIS;
     }
 
     private String generateUniqueCodeLocked() {
@@ -649,11 +857,11 @@ public final class VerificationService {
     }
 
     private IpMode ipMode() {
-        String raw = plugin.getConfig().getString("security.ip-binding.mode", "SESSION");
+        String raw = plugin.getConfig().getString("security.ip-binding.mode", "STRICT");
         try {
-            return IpMode.valueOf(raw == null ? "SESSION" : raw.trim().toUpperCase(Locale.ROOT));
+            return IpMode.valueOf(raw == null ? "STRICT" : raw.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ignored) {
-            return IpMode.SESSION;
+            return IpMode.STRICT;
         }
     }
 
@@ -701,7 +909,7 @@ public final class VerificationService {
             return 0L;
         }
 
-        int max = Math.max(1, plugin.getConfig().getInt("security.brute-force.max-failed-attempts", 5));
+        int max = Math.max(1, plugin.getConfig().getInt("security.brute-force.max-failed-attempts", 3));
         int lockMinutes = Math.max(1, plugin.getConfig().getInt("security.brute-force.lock-minutes", 5));
 
         AttemptState state = attempts.compute(discordId, (key, existing) -> {
@@ -767,6 +975,13 @@ public final class VerificationService {
             return out.append(":xxxx:xxxx").toString();
         }
         return "masked";
+    }
+
+    private String shortFingerprint(String hash) {
+        if (hash == null || hash.isBlank()) {
+            return "none";
+        }
+        return hash.substring(0, Math.min(12, hash.length()));
     }
 
     private boolean safeEquals(String a, String b) {
