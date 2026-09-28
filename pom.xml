@@ -6,7 +6,7 @@
 
     <groupId>id.cadera</groupId>
     <artifactId>CdrVerify</artifactId>
-    <version>0.4.1-SNAPSHOT</version>
+    <version>0.4.2-SNAPSHOT</version>
     <name>CdrVerify</name>
     <description>Discord-first account verification for Vephilim Roleplay.</description>
 
