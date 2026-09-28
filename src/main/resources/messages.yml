@@ -24,15 +24,20 @@ kick:
   ip-reverify: |-
     &8&m--------------------------------
     &e&lSECURITY CHECK
-    &fKonfirmasi Discord diperlukan
+    &fLogin dari IP baru terdeteksi
     &8&m--------------------------------
 
-    &7Perubahan IP terdeteksi.
+    &7Akun Minecraft ini sudah VERIFIED,
+    &7tetapi IP saat ini belum dipercaya.
+
     &7Verify code:
     &e&l%code%
 
-    &7Ketik langsung kode &f%code%
-    &7di channel verifikasi Discord Vephilim.
+    &7Buka Discord Vephilim lalu ketik
+    &f%code% &7langsung di channel verifikasi.
+
+    &cKode ini hanya dapat dikonfirmasi oleh
+    &cDiscord yang sudah terhubung ke akun ini.
 
     &7Kode berlaku selama &f%minutes% menit&7.
     &7Discord: &b%invite%
@@ -67,6 +72,10 @@ discord:
     Tidak perlu menggunakan `/verify`.
     Kode bersifat sementara, satu kali pakai, dan jangan dibagikan ke orang lain.
 
+    **Keamanan login**
+    Setelah verified, IP yang sudah dikonfirmasi akan disimpan sebagai trusted login.
+    Jika akun dipakai dari IP baru, sistem akan meminta kode keamanan lagi dan hanya Discord yang sudah terhubung yang dapat mengonfirmasinya.
+
   button-help: |-
     🔐 **CARA VERIFIKASI**
 
@@ -95,10 +104,11 @@ discord:
     Status:
     **VERIFIED**
 
+    Login ini juga telah disimpan sebagai trusted login.
     Silakan kembali ke Vephilim Roleplay.
 
   reverify-success: |-
-    ✅ **KONFIRMASI BERHASIL**
+    ✅ **KONFIRMASI LOGIN BERHASIL**
 
     Discord:
     **%discord%**
@@ -109,7 +119,8 @@ discord:
     Status:
     **VERIFIED**
 
-    IP baru telah dikonfirmasi. Silakan join kembali ke Vephilim Roleplay.
+    IP baru telah dikonfirmasi dan ditambahkan sebagai trusted login.
+    Silakan join kembali ke Vephilim Roleplay.
 
   invalid-code: |-
     ❌ **KODE TIDAK VALID**
@@ -130,7 +141,11 @@ discord:
     Hubungi Staff Vephilim jika ini tidak sesuai.
 
   wrong-discord: |-
-    ❌ Kode keamanan ini harus dikonfirmasi menggunakan akun Discord yang sudah terhubung dengan Minecraft tersebut.
+    ❌ **DISCORD TIDAK SESUAI**
+
+    Kode keamanan untuk login dari IP baru hanya dapat dikonfirmasi menggunakan akun Discord yang sudah terhubung dengan Minecraft tersebut.
+
+    Jika kamu pemilik akun tetapi kehilangan akses Discord, hubungi Staff Vephilim.
 
   internal-error: |-
     ❌ Verifikasi gagal karena kesalahan internal. Hubungi Staff Vephilim.
