@@ -5,7 +5,7 @@ verification:
   enabled: true
 
   code:
-    # Empty prefix = numeric-only verification code, example: 4827
+    # Empty prefix = numeric-only verification code, example: 2331
     prefix: ""
     digits: 4
     expire-minutes: 15
@@ -21,24 +21,25 @@ verification:
     # Optional Discord role granted after successful verification.
     verified-role-id: ""
 
-    # Main verification method.
+    # Direct-code is the primary verification method.
+    # Player simply sends the 4 digit code in the verification channel.
     slash-command:
-      enabled: true
+      enabled: false
 
-    # Keep false for a read-only verification channel.
-    # If enabled, users may paste the numeric verification code directly into the channel.
-    allow-message-code: false
+    # Must be true for direct-code verification.
+    allow-message-code: true
 
     # Persistent panel. Run /cdrverify panel once.
     panel:
-      button-label: "Verifikasi Akun"
+      button-label: "Cara Verifikasi"
       button-cooldown-seconds: 3
 
-    # Only used when allow-message-code is enabled.
+    # Submitted codes are deleted immediately so they are not exposed in channel history.
     delete-submitted-code: true
+
+    # Bot verification result is temporary. 0 = do not auto-delete.
     response-delete-seconds: 15
 
-    # Slash command replies are already ephemeral, so DM is off by default.
     dm-success: false
 
 security:
